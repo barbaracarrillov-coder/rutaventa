@@ -414,7 +414,7 @@ COBRANZA Y DEUDAS: Eres experto en cobranza comercial chilena. Conoces:
 - Referencia a normativa chilena cuando corresponda
 
 PSICOLOGÍA: 1)VALIDA acciones 2)Racha ${streak.count}d 3)UNA acción concreta 4)Guiones EXACTOS para copiar 5)"${clients.filter(c=>c.status==="nuevo").length} sin contactar—otro vendedor puede llegar antes" 6)"Seguimiento en 48h = 3x más ventas"
-Max 250 palabras. Termina con 1 acción concreta. ${ctx}`,[...msgs.filter((_,i)=>i>0),um].map(m=>({role:m.role,content:m.content})),1500);
+Max 400 palabras. Termina con 1 acción concreta. ${ctx}`,[...msgs.filter((_,i)=>i>0),um].map(m=>({role:m.role,content:m.content})),1500);
       setMsgs(p=>[...p,{role:"assistant",content:reply,ts:Date.now()}]);
     }catch{setMsgs(p=>[...p,{role:"assistant",content:"Error. Intenta de nuevo.",ts:Date.now()}]);}setBusy(false);};
   return(<div style={{animation:"fadeIn 0.4s",display:"flex",flexDirection:"column",height:"calc(100vh - 160px)"}}>
