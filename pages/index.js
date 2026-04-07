@@ -190,7 +190,7 @@ function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,toggleP
 
   const[filterLoc,setFilterLoc]=useState("todas");
   const localidades=[...new Set(clients.map(c=>c.localidad).filter(l=>l&&l.trim()))].sort();
-  const list0=filter==="todos"?clients:clients.filter(c=>c.status===filter);
+  const list0=filter==="todos"?clients:filter==="enruta"?clients.filter(c=>route.includes(c.id)):filter==="sinruta"?clients.filter(c=>!route.includes(c.id)):clients.filter(c=>c.status===filter);
   const list=filterLoc==="todas"?list0:list0.filter(c=>(c.localidad||"")===filterLoc);
   const cnt={todos:clients.length};Object.keys(STATUS).forEach(s=>{cnt[s]=clients.filter(c=>c.status===s).length;});
   return(<div style={{animation:"fadeIn 0.4s"}}><h2 style={{fontSize:"22px",fontWeight:900,marginBottom:"4px"}}>Mi Cartera</h2><p style={{fontSize:"14px",color:"#64748b",marginBottom:"14px"}}>{clients.length} clientes · {cnt.cliente||0} activos{filterLoc!=="todas"&&` · 📍 ${filterLoc}`}</p>
@@ -216,7 +216,7 @@ function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,toggleP
       <input value={newPhone} onChange={e=>setNewPhone(e.target.value)} placeholder="📞 Teléfono / WhatsApp (ej: +56 9 1234 5678)" style={{...S.input,marginBottom:"10px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
       <div style={{display:"flex",gap:"8px"}}><button onClick={handleAddManual} style={{...S.btn,flex:1,background:"linear-gradient(135deg,#059669,#10b981)",fontSize:"15px",padding:"12px"}}>✓ Guardar</button><button onClick={()=>setShowAdd(false)} style={{...S.btnSm,flex:0,padding:"12px 18px"}}>Cancelar</button></div>
     </div>}
-    <div style={{display:"flex",gap:"5px",flexWrap:"wrap",marginBottom:"8px"}}><Pill l={`Todos(${cnt.todos})`} on={filter==="todos"} fn={()=>setFilter("todos")} c="#64748b"/>{Object.entries(STATUS).map(([k,v])=><Pill key={k} l={`${v.icon}${v.label}(${cnt[k]||0})`} on={filter===k} fn={()=>setFilter(k)} c={v.color}/>)}</div>
+    <div style={{display:"flex",gap:"5px",flexWrap:"wrap",marginBottom:"8px"}}><Pill l={`Todos(${cnt.todos})`} on={filter==="todos"} fn={()=>setFilter("todos")} c="#64748b"/>{Object.entries(STATUS).map(([k,v])=><Pill key={k} l={`${v.icon}${v.label}(${cnt[k]||0})`} on={filter===k} fn={()=>setFilter(k)} c={v.color}/>)}<Pill l={`🗺️ En ruta(${clients.filter(c=>route.includes(c.id)).length})`} on={filter==="enruta"} fn={()=>setFilter("enruta")} c="#ea580c"/><Pill l={`⭕ Sin ruta(${clients.filter(c=>!route.includes(c.id)).length})`} on={filter==="sinruta"} fn={()=>setFilter("sinruta")} c="#64748b"/></div>
     {localidades.length>1&&<div style={{display:"flex",gap:"5px",flexWrap:"wrap",marginBottom:"14px"}}><Pill l="📍 Todas" on={filterLoc==="todas"} fn={()=>setFilterLoc("todas")} c="#0ea5e9"/>{localidades.map(loc=><Pill key={loc} l={`📍 ${loc}`} on={filterLoc===loc} fn={()=>setFilterLoc(loc)} c="#0ea5e9"/>)}</div>}
     {list.length===0&&<div style={{textAlign:"center",padding:"44px",color:"#94a3b8"}}><div style={{fontSize:"36px",marginBottom:"8px"}}>📋</div>{clients.length===0?"Agrega clientes con el botón verde ☝️ o busca en 🔍":"Sin resultados"}</div>}
     {list.map((c,i)=>{const cfg=STATUS[c.status];const open=openId===c.id;const inR=route.includes(c.id);return(<div key={c.id} style={{...S.card,padding:0,overflow:"hidden",animation:`fadeIn 0.3s ease ${i*0.03}s both`}}>
