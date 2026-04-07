@@ -64,6 +64,7 @@ function MainApp({user,onLogout}){
   const setStatus=useCallback((id,s)=>setClients(prev=>prev.map(c=>c.id===id?{...c,status:s,lastContact:today()}:c)),[]);
   const addNote=useCallback((id,t)=>setClients(prev=>prev.map(c=>c.id===id?{...c,notes:[...(c.notes||[]),{text:t,date:today()}],lastContact:today()}:c)),[]);
   const delClient=useCallback(id=>{setClients(p=>p.filter(c=>c.id!==id));setRoute(p=>p.filter(i=>i!==id));},[]);
+  const clearAllClients=useCallback(()=>{setClients([]);setRoute([]);},[]);
   const togglePaid=useCallback((id)=>setClients(prev=>prev.map(c=>c.id===id?{...c,paid:c.paid==="yes"?"no":c.paid==="no"?"":"yes",lastContact:today()}:c)),[]);
   const toRoute=useCallback(id=>setRoute(p=>p.includes(id)?p:[...p,id]),[]);
   const offRoute=useCallback(id=>setRoute(p=>p.filter(i=>i!==id)),[]);
@@ -83,7 +84,7 @@ function MainApp({user,onLogout}){
       <nav style={{display:"flex",background:"#fff",borderBottom:"2px solid #e2e8f0",padding:"0 2px",overflowX:"auto"}}>{TABS.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,minWidth:"55px",padding:"10px 2px 8px",border:"none",cursor:"pointer",background:"transparent",color:tab===t.id?"#31B189":"#94a3b8",display:"flex",flexDirection:"column",alignItems:"center",gap:"1px",borderBottom:tab===t.id?"3px solid #31B189":"3px solid transparent",fontWeight:tab===t.id?800:600}}><span style={{fontSize:"18px"}}>{t.icon}</span><span style={{fontSize:"10px"}}>{t.label}</span></button>)}</nav>
       <main style={{flex:1,overflow:"auto",padding:"14px",maxWidth:"600px",margin:"0 auto",width:"100%"}}>
         {tab==="prospects"&&<Prospects clients={clients} addClient={addClient}/>}
-        {tab==="clients"&&<CL clients={clients} setStatus={setStatus} addNote={addNote} delClient={delClient} toRoute={toRoute} route={route} addClient={addClient} togglePaid={togglePaid}/>}
+        {tab==="clients"&&<CL clients={clients} setStatus={setStatus} addNote={addNote} delClient={delClient} toRoute={toRoute} route={route} addClient={addClient} togglePaid={togglePaid} clearAll={clearAllClients}/>}
         {tab==="route"&&<RT routeClients={routeClients} offRoute={offRoute} moveRoute={moveRoute} setStatus={setStatus} reorderRoute={reorderRoute}/>}
         {tab==="prices"&&<PR priceText={priceText} savePrices={savePrices}/>}
         {tab==="agent"&&<AG clients={clients} routeClients={routeClients} priceText={priceText} streak={streak} userName={user.name} todaysActions={todaysActions} uid={uid} profile={profile}/>}
@@ -115,7 +116,7 @@ function Prospects({clients,addClient}){const[q,setQ]=useState("");const[loc,set
 }
 
 // ━━━ CLIENTS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,togglePaid}){const[filter,setFilter]=useState("todos");const[openId,setOpenId]=useState(null);const[note,setNote]=useState("");
+function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,togglePaid,clearAll}){const[filter,setFilter]=useState("todos");const[openId,setOpenId]=useState(null);const[note,setNote]=useState("");
   const[showAdd,setShowAdd]=useState(false);const[newName,setNewName]=useState("");const[newAddr,setNewAddr]=useState("");const[newPhone,setNewPhone]=useState("");const[newType,setNewType]=useState("");const[newEmail,setNewEmail]=useState("");const[newWhatsapp,setNewWhatsapp]=useState("");const[newRut,setNewRut]=useState("");const[newLocalidad,setNewLocalidad]=useState("");
   const fileRef=useRef(null);const[importMsg,setImportMsg]=useState("");
   const handleAddManual=()=>{if(!newName.trim())return;addClient({id:"m_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),name:newName.trim(),address:newAddr.trim()||"Sin dirección",phone:newPhone.trim(),type:newType.trim()||"",rating:0,email:newEmail.trim(),whatsapp:newPhone.trim(),rut:newRut.trim(),localidad:newLocalidad.trim()});setNewName("");setNewAddr("");setNewPhone("");setNewType("");setNewEmail("");setNewWhatsapp("");setNewRut("");setNewLocalidad("");setShowAdd(false);};
@@ -275,7 +276,7 @@ function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,toggleP
       <button onClick={()=>fileRef.current?.click()} style={{...S.btn,flex:1,background:"linear-gradient(135deg,#2563eb,#1d4ed8)",fontSize:"14px",padding:"11px",width:"auto"}}>📥 Importar</button>
       {clients.length>0&&<button onClick={handleExport} style={{...S.btn,flex:1,background:"linear-gradient(135deg,#d97706,#f59e0b)",fontSize:"14px",padding:"11px",width:"auto"}}>📤 Exportar</button>}
     </div>
-    {clients.length>0&&<button onClick={()=>{if(confirm("⚠️ ¿Borrar TODOS los "+clients.length+" clientes? Esta acción no se puede deshacer.")){while(clients.length>0){delClient(clients[0].id);}}}} style={{width:"100%",padding:"11px",background:"#fff",border:"2px solid #fecaca",borderRadius:"14px",color:"#c0392b",fontWeight:700,fontSize:"14px",cursor:"pointer",fontFamily:"'Nunito',sans-serif",marginBottom:"14px"}}>🗑️ Borrar todos los clientes ({clients.length})</button>}
+    {clients.length>0&&<button onClick={()=>{if(confirm("⚠️ ¿Borrar TODOS los "+clients.length+" clientes? Esta acción no se puede deshacer.")){clearAll();}}} style={{width:"100%",padding:"12px",background:"#fff",border:"2px solid #fecaca",borderRadius:"14px",color:"#c0392b",fontWeight:700,fontSize:"15px",cursor:"pointer",fontFamily:"'Nunito',sans-serif",marginBottom:"14px"}}>🗑️ Borrar todos los clientes ({clients.length})</button>}
     </div>
     {importMsg&&<div style={{padding:"10px 14px",borderRadius:"10px",marginBottom:"10px",fontSize:"14px",fontWeight:700,background:importMsg.startsWith("✅")?"#edf7e6":"#fef2f2",color:importMsg.startsWith("✅")?"#7ACE67":"#c0392b",border:`2px solid ${importMsg.startsWith("✅")?"#b9e6a0":"#fecaca"}`}}>{importMsg}</div>}
     {showAdd&&<div style={{...S.card,border:"2px solid #10b981",marginBottom:"14px"}}>
