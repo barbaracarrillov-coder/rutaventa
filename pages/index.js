@@ -14,7 +14,7 @@ async function callAI(system,messages,max_tokens=1500){
 function today(){return new Date().toISOString().split("T")[0];}
 
 const STATUS={nuevo:{label:"Nuevo",color:"#2563eb",bg:"#dbeafe",icon:"★"},contactado:{label:"Contactado",color:"#d97706",bg:"#fef3c7",icon:"✉"},interesado:{label:"Interesado",color:"#7c3aed",bg:"#ede9fe",icon:"🎯"},cliente:{label:"Cliente",color:"#059669",bg:"#d1fae5",icon:"✓"},perdido:{label:"Perdido",color:"#dc2626",bg:"#fee2e2",icon:"✕"}};
-const TABS=[{id:"prospects",icon:"🔍",label:"Buscar"},{id:"clients",icon:"📋",label:"Clientes"},{id:"route",icon:"🗺️",label:"Ruta"},{id:"prices",icon:"💰",label:"Precios"},{id:"profile",icon:"👤",label:"Perfil"},{id:"agent",icon:"🤖",label:"Agente"}];
+const TABS=[{id:"prospects",icon:"🔍",label:"Buscar"},{id:"clients",icon:"📋",label:"Clientes"},{id:"route",icon:"🗺️",label:"Ruta"},{id:"prices",icon:"💰",label:"Precios"},{id:"agent",icon:"🤖",label:"Agente"}];
 const QUICK=[{label:"🍖 Carnicerías",q:"carnicería"},{label:"🍽️ Restaurantes",q:"restaurante"},{label:"🏪 Mercados",q:"mercado de alimentos"},{label:"🏨 Hoteles",q:"hotel con restaurante"},{label:"🍳 Fuentes de soda",q:"fuente de soda"},{label:"🍕 Pizzerías",q:"pizzería"},{label:"☕ Cafeterías",q:"cafetería"},{label:"🎂 Pastelerías",q:"pastelería"},{label:"🏥 Casinos",q:"casino empresa comedor"},{label:"🐟 Marisquerías",q:"cevichería marisquería"}];
 
 const S={input:{width:"100%",padding:"14px 16px",background:"#fff",border:"2px solid #e2e8f0",borderRadius:"14px",color:"#1e293b",fontSize:"16px",outline:"none",fontFamily:"'Nunito',sans-serif"},card:{background:"#fff",borderRadius:"14px",border:"2px solid #e2e8f0",padding:"16px",marginBottom:"10px"},section:{fontSize:"13px",fontWeight:800,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"1px",marginBottom:"10px"},btn:{padding:"14px 24px",background:"linear-gradient(135deg,#ea580c,#dc2626)",border:"none",borderRadius:"14px",color:"#fff",fontWeight:800,fontSize:"16px",cursor:"pointer",boxShadow:"0 3px 12px rgba(234,88,12,0.25)",fontFamily:"'Nunito',sans-serif",width:"100%"},btnSm:{padding:"8px 14px",background:"#f1f5f9",border:"2px solid #e2e8f0",borderRadius:"10px",color:"#475569",fontSize:"14px",fontWeight:700,cursor:"pointer",fontFamily:"'Nunito',sans-serif"}};
@@ -73,11 +73,12 @@ function MainApp({user,onLogout}){
   const saveProfile=useCallback(p=>{setProfile(p);sSet(`${uid}-pf`,p);},[uid]);
   const routeClients=route.map(id=>clients.find(c=>c.id===id)).filter(Boolean);
   const todaysActions=clients.filter(c=>c.lastContact===today()).length;
+  const[showProfile,setShowProfile]=useState(false);
 
   return(<><Head><title>RutaVenta</title><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/><meta name="theme-color" content="#ea580c"/><link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺</text></svg>"/></Head>
     <style dangerouslySetInnerHTML={{__html:`@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');*{box-sizing:border-box;margin:0;padding:0}input,textarea,button{font-family:'Nunito',sans-serif}@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`}}/>
     <div style={{minHeight:"100vh",background:"#f8f9fb",fontFamily:"'Nunito',sans-serif",color:"#1e293b",display:"flex",flexDirection:"column"}}>
-      <header style={{padding:"12px 16px",background:"#fff",borderBottom:"2px solid #e2e8f0",display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:"10px"}}><div style={{width:"36px",height:"36px",borderRadius:"10px",background:"linear-gradient(135deg,#ea580c,#dc2626)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"17px",fontWeight:900,color:"#fff"}}>R</div><div><div style={{fontSize:"15px",fontWeight:800}}>Hola, {user.name.split(" ")[0]} 👋</div><div style={{fontSize:"11px",color:"#64748b",fontWeight:600}}>🔥 Racha: {streak.count} días · {clients.filter(c=>c.status==="cliente").length} clientes</div></div></div><button onClick={onLogout} style={{padding:"5px 10px",background:"#f1f5f9",border:"2px solid #e2e8f0",borderRadius:"8px",color:"#94a3b8",fontSize:"11px",fontWeight:600,cursor:"pointer"}}>Salir</button></header>
+      <header style={{padding:"12px 16px",background:"#fff",borderBottom:"2px solid #e2e8f0",display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:"10px"}}><div style={{width:"36px",height:"36px",borderRadius:"10px",background:"linear-gradient(135deg,#ea580c,#dc2626)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"17px",fontWeight:900,color:"#fff"}}>R</div><div><div style={{fontSize:"15px",fontWeight:800}}>Hola, {user.name.split(" ")[0]} 👋</div><div style={{fontSize:"11px",color:"#64748b",fontWeight:600}}>🔥 Racha: {streak.count} días · {clients.filter(c=>c.status==="cliente").length} clientes</div></div></div><div style={{display:"flex",gap:"6px",alignItems:"center"}}><button onClick={()=>setShowProfile(true)} style={{padding:"6px 10px",background:profile.empresa?"#f0fdf4":"#fff7ed",border:`2px solid ${profile.empresa?"#bbf7d0":"#fed7aa"}`,borderRadius:"8px",color:profile.empresa?"#059669":"#ea580c",fontSize:"12px",fontWeight:700,cursor:"pointer"}}>{profile.empresa?"👤":"⚙️ Perfil"}</button><button onClick={onLogout} style={{padding:"6px 10px",background:"#f1f5f9",border:"2px solid #e2e8f0",borderRadius:"8px",color:"#94a3b8",fontSize:"11px",fontWeight:600,cursor:"pointer"}}>Salir</button></div></header>
       {tab==="prospects"&&<div style={{background:"linear-gradient(135deg,#fff7ed,#fef3c7)",padding:"10px 16px",borderBottom:"2px solid #fed7aa",display:"flex",alignItems:"center",gap:"8px"}}><span style={{fontSize:"20px"}}>🎯</span><div><div style={{fontSize:"13px",fontWeight:800,color:"#92400e"}}>Meta de hoy</div><div style={{fontSize:"12px",color:"#a16207"}}>{clients.filter(c=>c.status==="nuevo").length>3?`Contacta ${Math.min(3,clients.filter(c=>c.status==="nuevo").length)} clientes y sigue a ${Math.min(2,clients.filter(c=>c.status==="contactado").length)} contactados`:`Agrega ${Math.max(0,5-clients.length)} clientes a tu cartera`}</div></div></div>}
       <nav style={{display:"flex",background:"#fff",borderBottom:"2px solid #e2e8f0",padding:"0 2px",overflowX:"auto"}}>{TABS.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,minWidth:"55px",padding:"10px 2px 8px",border:"none",cursor:"pointer",background:"transparent",color:tab===t.id?"#ea580c":"#94a3b8",display:"flex",flexDirection:"column",alignItems:"center",gap:"1px",borderBottom:tab===t.id?"3px solid #ea580c":"3px solid transparent",fontWeight:tab===t.id?800:600}}><span style={{fontSize:"18px"}}>{t.icon}</span><span style={{fontSize:"10px"}}>{t.label}</span></button>)}</nav>
       <main style={{flex:1,overflow:"auto",padding:"14px",maxWidth:"600px",margin:"0 auto",width:"100%"}}>
@@ -85,10 +86,11 @@ function MainApp({user,onLogout}){
         {tab==="clients"&&<CL clients={clients} setStatus={setStatus} addNote={addNote} delClient={delClient} toRoute={toRoute} route={route} addClient={addClient} togglePaid={togglePaid}/>}
         {tab==="route"&&<RT routeClients={routeClients} offRoute={offRoute} moveRoute={moveRoute} setStatus={setStatus} reorderRoute={reorderRoute}/>}
         {tab==="prices"&&<PR priceText={priceText} savePrices={savePrices}/>}
-        {tab==="profile"&&<ProfileTab profile={profile} saveProfile={saveProfile} userName={user.name} userEmail={user.email}/>}
         {tab==="agent"&&<AG clients={clients} routeClients={routeClients} priceText={priceText} streak={streak} userName={user.name} todaysActions={todaysActions} uid={uid} profile={profile}/>}
       </main>
     </div>
+    {/* PROFILE MODAL */}
+    {showProfile&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:1000,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"20px",overflow:"auto"}} onClick={()=>setShowProfile(false)}><div style={{background:"#f8f9fb",borderRadius:"20px",width:"100%",maxWidth:"500px",maxHeight:"90vh",overflow:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.2)",marginTop:"20px"}} onClick={e=>e.stopPropagation()}><div style={{padding:"20px 20px 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}><h2 style={{fontSize:"20px",fontWeight:900}}>👤 Mi Perfil</h2><button onClick={()=>setShowProfile(false)} style={{width:"32px",height:"32px",borderRadius:"8px",border:"2px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:"16px",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button></div><div style={{padding:"16px 20px 20px"}}><ProfileTab profile={profile} saveProfile={(p)=>{saveProfile(p);}} userName={user.name} userEmail={user.email} onClose={()=>setShowProfile(false)}/></div></div></div>}
   </>);
 }
 
@@ -303,14 +305,13 @@ function PR({priceText,savePrices}){const[text,setText]=useState(priceText);cons
 }
 
 // ━━━ PROFILE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function ProfileTab({profile,saveProfile,userName,userEmail}){
+function ProfileTab({profile,saveProfile,userName,userEmail,onClose}){
   const[p,setP]=useState(profile);const[saved,setSaved]=useState(false);
   const upd=(k,v)=>setP(prev=>({...prev,[k]:v}));
-  const save=()=>{saveProfile(p);setSaved(true);setTimeout(()=>setSaved(false),2000);};
+  const save=()=>{saveProfile(p);setSaved(true);setTimeout(()=>{setSaved(false);if(onClose)onClose();},1500);};
   const lbl={fontSize:"13px",fontWeight:700,color:"#475569",display:"block",marginBottom:"5px"};
-  return(<div style={{animation:"fadeIn 0.4s"}}>
-    <h2 style={{fontSize:"22px",fontWeight:900,marginBottom:"4px"}}>Mi Perfil</h2>
-    <p style={{fontSize:"14px",color:"#64748b",marginBottom:"16px"}}>El agente IA usa estos datos para pitches, cotizaciones y mensajes</p>
+  return(<div>
+    <p style={{fontSize:"13px",color:"#64748b",marginBottom:"14px"}}>El agente IA usa estos datos para pitches, cotizaciones y mensajes</p>
 
     <div style={{...S.card,border:"2px solid #e2e8f0",marginBottom:"12px"}}>
       <div style={{fontSize:"15px",fontWeight:800,color:"#1e293b",marginBottom:"12px"}}>👤 Datos del Vendedor</div>
