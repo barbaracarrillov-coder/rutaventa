@@ -274,7 +274,8 @@ function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,toggleP
       <input type="file" ref={fileRef} onChange={handleImport} accept=".csv,.txt,.tsv,.xls,.xlsx" style={{display:"none"}}/>
       <button onClick={()=>fileRef.current?.click()} style={{...S.btn,flex:1,background:"linear-gradient(135deg,#2563eb,#1d4ed8)",fontSize:"14px",padding:"11px",width:"auto"}}>📥 Importar</button>
       {clients.length>0&&<button onClick={handleExport} style={{...S.btn,flex:1,background:"linear-gradient(135deg,#d97706,#f59e0b)",fontSize:"14px",padding:"11px",width:"auto"}}>📤 Exportar</button>}
-      {clients.length>0&&<button onClick={()=>{if(confirm("¿Borrar TODOS los clientes? Esta acción no se puede deshacer.")){clients.forEach(c=>delClient(c.id));}}} style={{...S.btn,flex:0,background:"#ef4444",fontSize:"14px",padding:"11px",width:"auto",minWidth:"40px"}}>🗑️</button>}
+    </div>
+    {clients.length>0&&<button onClick={()=>{if(confirm("⚠️ ¿Borrar TODOS los "+clients.length+" clientes? Esta acción no se puede deshacer.")){while(clients.length>0){delClient(clients[0].id);}}}} style={{width:"100%",padding:"11px",background:"#fff",border:"2px solid #fecaca",borderRadius:"14px",color:"#c0392b",fontWeight:700,fontSize:"14px",cursor:"pointer",fontFamily:"'Nunito',sans-serif",marginBottom:"14px"}}>🗑️ Borrar todos los clientes ({clients.length})</button>}
     </div>
     {importMsg&&<div style={{padding:"10px 14px",borderRadius:"10px",marginBottom:"10px",fontSize:"14px",fontWeight:700,background:importMsg.startsWith("✅")?"#edf7e6":"#fef2f2",color:importMsg.startsWith("✅")?"#7ACE67":"#c0392b",border:`2px solid ${importMsg.startsWith("✅")?"#b9e6a0":"#fecaca"}`}}>{importMsg}</div>}
     {showAdd&&<div style={{...S.card,border:"2px solid #10b981",marginBottom:"14px"}}>
