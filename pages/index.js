@@ -111,16 +111,16 @@ function Prospects({clients,addClient}){const[q,setQ]=useState("");const[loc,set
 
 // ━━━ CLIENTS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,togglePaid}){const[filter,setFilter]=useState("todos");const[openId,setOpenId]=useState(null);const[note,setNote]=useState("");
-  const[showAdd,setShowAdd]=useState(false);const[newName,setNewName]=useState("");const[newAddr,setNewAddr]=useState("");const[newPhone,setNewPhone]=useState("");const[newType,setNewType]=useState("");const[newEmail,setNewEmail]=useState("");const[newWhatsapp,setNewWhatsapp]=useState("");
+  const[showAdd,setShowAdd]=useState(false);const[newName,setNewName]=useState("");const[newAddr,setNewAddr]=useState("");const[newPhone,setNewPhone]=useState("");const[newType,setNewType]=useState("");const[newEmail,setNewEmail]=useState("");const[newWhatsapp,setNewWhatsapp]=useState("");const[newRut,setNewRut]=useState("");const[newLocalidad,setNewLocalidad]=useState("");
   const fileRef=useRef(null);const[importMsg,setImportMsg]=useState("");
-  const handleAddManual=()=>{if(!newName.trim())return;addClient({id:"m_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),name:newName.trim(),address:newAddr.trim()||"Sin dirección",phone:newPhone.trim(),type:newType.trim()||"Cliente directo",rating:0,email:newEmail.trim(),whatsapp:newWhatsapp.trim()});setNewName("");setNewAddr("");setNewPhone("");setNewType("");setNewEmail("");setNewWhatsapp("");setShowAdd(false);};
+  const handleAddManual=()=>{if(!newName.trim())return;addClient({id:"m_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),name:newName.trim(),address:newAddr.trim()||"Sin dirección",phone:newPhone.trim(),type:newType.trim()||"Cliente directo",rating:0,email:newEmail.trim(),whatsapp:newWhatsapp.trim(),rut:newRut.trim(),localidad:newLocalidad.trim()});setNewName("");setNewAddr("");setNewPhone("");setNewType("");setNewEmail("");setNewWhatsapp("");setNewRut("");setNewLocalidad("");setShowAdd(false);};
 
   // ── DOWNLOAD TEMPLATE ──
   const downloadTemplate=()=>{
-    const header="Nombre,Dirección,Teléfono,Tipo,Email,WhatsApp";
-    const example1="Restaurante El Fogón,Av. Angelmó 1876 Puerto Montt,+56912345678,Restaurante,contacto@elfogon.cl,+56912345678";
-    const example2="Carnicería Don Pedro,Vicente Pérez Rosales 890 Puerto Varas,+56987654321,Carnicería,donpedro@gmail.com,+56987654321";
-    const example3="Hotel Los Lagos,Gramado 156 Puerto Varas,+56911112222,Hotel,reservas@loslagos.cl,+56911112222";
+    const header="RUT,Cliente,Dirección,Localidad,Giro,Email,Teléfono,WhatsApp";
+    const example1="12.345.678-9,Restaurante El Fogón,Av. Angelmó 1876,Puerto Montt,Restaurante,contacto@elfogon.cl,+56912345678,+56912345678";
+    const example2="98.765.432-1,Carnicería Don Pedro,Vicente Pérez Rosales 890,Puerto Varas,Carnicería,donpedro@gmail.com,+56987654321,+56987654321";
+    const example3="11.222.333-4,Hotel Los Lagos,Gramado 156,Puerto Varas,Hotelería,reservas@loslagos.cl,+56911112222,+56911112222";
     const csv=header+"\n"+example1+"\n"+example2+"\n"+example3+"\n";
     const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
     const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="plantilla_rutaventa.csv";a.click();URL.revokeObjectURL(url);
@@ -136,13 +136,15 @@ function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,toggleP
     const sep=lines[0].includes("\t")?"\t":",";
     const headers=lines[0].toLowerCase().split(sep).map(h=>h.trim().replace(/"/g,""));
     // Find column indices
-    const nameIdx=headers.findIndex(h=>h.includes("nombre")||h==="name");
+    const nameIdx=headers.findIndex(h=>h.includes("nombre")||h==="name"||h.includes("cliente"));
     const addrIdx=headers.findIndex(h=>h.includes("direc")||h.includes("address"));
     const phoneIdx=headers.findIndex(h=>h.includes("teléfono")||h.includes("telefono")||h.includes("phone")||h.includes("fono"));
-    const typeIdx=headers.findIndex(h=>h.includes("tipo")||h.includes("type")||h.includes("rubro"));
+    const typeIdx=headers.findIndex(h=>h.includes("giro")||h.includes("tipo")||h.includes("type")||h.includes("rubro"));
     const emailIdx=headers.findIndex(h=>h.includes("email")||h.includes("correo")||h.includes("mail"));
     const waIdx=headers.findIndex(h=>h.includes("whatsapp")||h.includes("wsp")||h.includes("wa"));
-    if(nameIdx===-1){setImportMsg("❌ No se encontró la columna 'Nombre'. Usa la plantilla.");setTimeout(()=>setImportMsg(""),4000);return;}
+    const rutIdx=headers.findIndex(h=>h.includes("rut")||h.includes("ruc")||h.includes("tax"));
+    const locIdx=headers.findIndex(h=>h.includes("localidad")||h.includes("ciudad")||h.includes("city")||h.includes("comuna"));
+    if(nameIdx===-1){setImportMsg("❌ No se encontró la columna 'Cliente'. Usa la plantilla.");setTimeout(()=>setImportMsg(""),4000);return;}
     let count=0;
     for(let i=1;i<lines.length;i++){
       const cols=lines[i].split(sep).map(c=>c.trim().replace(/^"|"$/g,""));
@@ -152,9 +154,11 @@ function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,toggleP
         name:name,
         address:addrIdx>=0?cols[addrIdx]||"Sin dirección":"Sin dirección",
         phone:phoneIdx>=0?cols[phoneIdx]||"":"",
-        type:typeIdx>=0?cols[typeIdx]||"Cliente":"Cliente",
+        type:typeIdx>=0?cols[typeIdx]||"":"",
         email:emailIdx>=0?cols[emailIdx]||"":"",
         whatsapp:waIdx>=0?cols[waIdx]||"":"",
+        rut:rutIdx>=0?cols[rutIdx]||"":"",
+        localidad:locIdx>=0?cols[locIdx]||"":"",
         rating:0,
       });
       count++;
@@ -166,13 +170,15 @@ function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,toggleP
   // ── EXPORT CSV ──
   const handleExport=()=>{
     if(clients.length===0)return;
-    const header="Nombre,Dirección,Teléfono,Tipo,Email,WhatsApp,Estado,Último Contacto,Pagó";
+    const header="RUT,Cliente,Dirección,Localidad,Giro,Email,Teléfono,WhatsApp,Estado,Último Contacto,Pagó";
     const rows=clients.map(c=>[
+      `"${c.rut||""}"`,
       `"${(c.name||"").replace(/"/g,'""')}"`,
       `"${(c.address||"").replace(/"/g,'""')}"`,
-      `"${c.phone||""}"`,
+      `"${c.localidad||""}"`,
       `"${c.type||""}"`,
       `"${c.email||""}"`,
+      `"${c.phone||""}"`,
       `"${c.whatsapp||""}"`,
       `"${c.status||""}"`,
       `"${c.lastContact||""}"`,
@@ -198,18 +204,20 @@ function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,toggleP
     {importMsg&&<div style={{padding:"10px 14px",borderRadius:"10px",marginBottom:"10px",fontSize:"14px",fontWeight:700,background:importMsg.startsWith("✅")?"#f0fdf4":"#fef2f2",color:importMsg.startsWith("✅")?"#059669":"#dc2626",border:`2px solid ${importMsg.startsWith("✅")?"#bbf7d0":"#fecaca"}`}}>{importMsg}</div>}
     {showAdd&&<div style={{...S.card,border:"2px solid #10b981",marginBottom:"14px"}}>
       <div style={{fontSize:"15px",fontWeight:800,color:"#059669",marginBottom:"10px"}}>➕ Nuevo Cliente</div>
-      <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Nombre del negocio *" style={{...S.input,marginBottom:"8px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
-      <input value={newAddr} onChange={e=>setNewAddr(e.target.value)} placeholder="Dirección (ej: Av. Angelmó 1876, Puerto Montt)" style={{...S.input,marginBottom:"8px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
-      <input value={newPhone} onChange={e=>setNewPhone(e.target.value)} placeholder="Teléfono (ej: +56 9 1234 5678)" style={{...S.input,marginBottom:"8px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
-      <input value={newType} onChange={e=>setNewType(e.target.value)} placeholder="Tipo (ej: Restaurante, Carnicería, Hotel)" style={{...S.input,marginBottom:"8px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
+      <input value={newRut} onChange={e=>setNewRut(e.target.value)} placeholder="RUT (ej: 12.345.678-9)" style={{...S.input,marginBottom:"8px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
+      <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Nombre del cliente *" style={{...S.input,marginBottom:"8px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
+      <input value={newAddr} onChange={e=>setNewAddr(e.target.value)} placeholder="Dirección (ej: Av. Angelmó 1876)" style={{...S.input,marginBottom:"8px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
+      <input value={newLocalidad} onChange={e=>setNewLocalidad(e.target.value)} placeholder="Localidad (ej: Puerto Montt)" style={{...S.input,marginBottom:"8px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
+      <input value={newType} onChange={e=>setNewType(e.target.value)} placeholder="Giro (ej: Restaurante, Carnicería, Hotelería)" style={{...S.input,marginBottom:"8px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
       <input value={newEmail} onChange={e=>setNewEmail(e.target.value)} placeholder="📧 Email (opcional)" type="email" style={{...S.input,marginBottom:"8px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
+      <input value={newPhone} onChange={e=>setNewPhone(e.target.value)} placeholder="📞 Teléfono (ej: +56 9 1234 5678)" style={{...S.input,marginBottom:"8px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
       <input value={newWhatsapp} onChange={e=>setNewWhatsapp(e.target.value)} placeholder="💬 WhatsApp (ej: +56912345678)" style={{...S.input,marginBottom:"10px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
       <div style={{display:"flex",gap:"8px"}}><button onClick={handleAddManual} style={{...S.btn,flex:1,background:"linear-gradient(135deg,#059669,#10b981)",fontSize:"15px",padding:"12px"}}>✓ Guardar</button><button onClick={()=>setShowAdd(false)} style={{...S.btnSm,flex:0,padding:"12px 18px"}}>Cancelar</button></div>
     </div>}
     <div style={{display:"flex",gap:"5px",flexWrap:"wrap",marginBottom:"14px"}}><Pill l={`Todos(${cnt.todos})`} on={filter==="todos"} fn={()=>setFilter("todos")} c="#64748b"/>{Object.entries(STATUS).map(([k,v])=><Pill key={k} l={`${v.icon}${v.label}(${cnt[k]||0})`} on={filter===k} fn={()=>setFilter(k)} c={v.color}/>)}</div>
     {list.length===0&&<div style={{textAlign:"center",padding:"44px",color:"#94a3b8"}}><div style={{fontSize:"36px",marginBottom:"8px"}}>📋</div>{clients.length===0?"Agrega clientes con el botón verde ☝️ o busca en 🔍":"Sin resultados"}</div>}
     {list.map((c,i)=>{const cfg=STATUS[c.status];const open=openId===c.id;const inR=route.includes(c.id);return(<div key={c.id} style={{...S.card,padding:0,overflow:"hidden",animation:`fadeIn 0.3s ease ${i*0.03}s both`}}>
-      <div onClick={()=>setOpenId(open?null:c.id)} style={{padding:"14px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{display:"flex",alignItems:"center",gap:"6px",marginBottom:"2px",flexWrap:"wrap"}}><span style={{fontSize:"15px",fontWeight:800}}>{c.name}</span><span style={{fontSize:"11px",padding:"2px 7px",borderRadius:"8px",background:cfg.bg,color:cfg.color,fontWeight:700}}>{cfg.icon}{cfg.label}</span>{c.paid==="yes"&&<span style={{fontSize:"10px",padding:"2px 6px",borderRadius:"6px",background:"#d1fae5",color:"#059669",fontWeight:700}}>💰 Pagó</span>}{c.paid==="no"&&<span style={{fontSize:"10px",padding:"2px 6px",borderRadius:"6px",background:"#fee2e2",color:"#dc2626",fontWeight:700}}>⚠️ Debe</span>}{inR&&<span style={{fontSize:"10px",padding:"2px 5px",borderRadius:"6px",background:"#fff7ed",color:"#ea580c",fontWeight:700}}>🗺️</span>}</div><div style={{fontSize:"12px",color:"#64748b"}}>{c.address}{c.email&&` · ${c.email}`}{c.whatsapp&&` · WA: ${c.whatsapp}`}</div></div><span style={{color:"#94a3b8",transform:open?"rotate(180deg)":"none",transition:"0.2s"}}>▾</span></div>
+      <div onClick={()=>setOpenId(open?null:c.id)} style={{padding:"14px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{display:"flex",alignItems:"center",gap:"6px",marginBottom:"2px",flexWrap:"wrap"}}><span style={{fontSize:"15px",fontWeight:800}}>{c.name}</span><span style={{fontSize:"11px",padding:"2px 7px",borderRadius:"8px",background:cfg.bg,color:cfg.color,fontWeight:700}}>{cfg.icon}{cfg.label}</span>{c.paid==="yes"&&<span style={{fontSize:"10px",padding:"2px 6px",borderRadius:"6px",background:"#d1fae5",color:"#059669",fontWeight:700}}>💰 Pagó</span>}{c.paid==="no"&&<span style={{fontSize:"10px",padding:"2px 6px",borderRadius:"6px",background:"#fee2e2",color:"#dc2626",fontWeight:700}}>⚠️ Debe</span>}{inR&&<span style={{fontSize:"10px",padding:"2px 5px",borderRadius:"6px",background:"#fff7ed",color:"#ea580c",fontWeight:700}}>🗺️</span>}</div><div style={{fontSize:"12px",color:"#64748b"}}>{c.rut&&`${c.rut} · `}{c.address}{c.localidad&&`, ${c.localidad}`}{c.type&&` · ${c.type}`}</div></div><span style={{color:"#94a3b8",transform:open?"rotate(180deg)":"none",transition:"0.2s"}}>▾</span></div>
       {open&&<div style={{padding:"0 14px 14px",borderTop:"2px solid #f1f5f9"}}><div style={{...S.section,marginTop:"10px"}}>Estado</div><div style={{display:"flex",gap:"4px",flexWrap:"wrap",marginBottom:"10px"}}>{Object.entries(STATUS).map(([k,v])=><button key={k} onClick={()=>setStatus(c.id,k)} style={{padding:"6px 10px",borderRadius:"8px",fontSize:"12px",fontWeight:700,cursor:"pointer",background:c.status===k?v.color:"#f8fafc",color:c.status===k?"#fff":v.color,border:`2px solid ${c.status===k?v.color:"#e2e8f0"}`}}>{v.icon}{v.label}</button>)}</div>
         <div style={{display:"flex",gap:"6px",marginBottom:"10px",flexWrap:"wrap"}}>{!inR&&<button onClick={()=>toRoute(c.id)} style={{...S.btnSm,color:"#ea580c",borderColor:"#fed7aa",background:"#fff7ed",fontSize:"12px"}}>🗺️ A ruta</button>}<button onClick={()=>togglePaid(c.id)} style={{...S.btnSm,color:c.paid==="yes"?"#dc2626":"#059669",borderColor:c.paid==="yes"?"#fecaca":"#bbf7d0",background:c.paid==="yes"?"#fef2f2":"#f0fdf4",fontSize:"12px"}}>{c.paid==="yes"?"❌ Marcar como debe":"💰 Marcar como pagó"}</button><button onClick={()=>delClient(c.id)} style={{...S.btnSm,color:"#dc2626",borderColor:"#fecaca",background:"#fef2f2",fontSize:"12px"}}>🗑️ Eliminar</button></div>
         {/* CONTACT BUTTONS */}
@@ -267,13 +275,20 @@ function RT({routeClients,offRoute,moveRoute,setStatus,reorderRoute}){
 // ━━━ PRICES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function PR({priceText,savePrices}){const[text,setText]=useState(priceText);const[saved,setSaved]=useState(false);const ref=useRef(null);const[upl,setUpl]=useState(false);
   const handleFile=async e=>{const f=e.target.files[0];if(!f)return;setUpl(true);
-    if(f.name.endsWith(".txt")||f.name.endsWith(".csv")){const c=await f.text();setText(c);savePrices(c);setSaved(true);setTimeout(()=>setSaved(false),2000);}
-    else{const reader=new FileReader();reader.onload=async()=>{const b64=reader.result.split(",")[1];try{const ext=await callAI("Extract ALL products and prices. Format: one per line 'Product - $Price/unit'. Spanish.",[{role:"user",content:[{type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}},{type:"text",text:"Extrae productos y precios"}]}],3000);setText(ext);savePrices(ext);setSaved(true);setTimeout(()=>setSaved(false),2000);}catch{alert("Error. Copia y pega manualmente.");}};reader.readAsDataURL(f);}setUpl(false);};
+    if(f.name.endsWith(".txt")||f.name.endsWith(".csv")){
+      const c=await f.text();setText(c);savePrices(c);setSaved(true);setTimeout(()=>setSaved(false),2000);
+    } else if(f.name.endsWith(".xlsx")||f.name.endsWith(".xls")){
+      // Excel: read as text via AI
+      const reader=new FileReader();reader.onload=async()=>{const b64=reader.result.split(",")[1];try{const ext=await callAI("Extract ALL products and prices from this Excel file. Format: one per line 'Product - $Price per unit'. Include ALL items. Spanish.",[{role:"user",content:[{type:"document",source:{type:"base64",media_type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",data:b64}},{type:"text",text:"Extrae todos los productos y precios de este Excel"}]}],3000);setText(ext);savePrices(ext);setSaved(true);setTimeout(()=>setSaved(false),2000);}catch{alert("Error al leer Excel. Intenta guardar como CSV y subir de nuevo.");}};reader.readAsDataURL(f);
+    } else{
+      // PDF
+      const reader=new FileReader();reader.onload=async()=>{const b64=reader.result.split(",")[1];try{const ext=await callAI("Extract ALL products and prices. Format: one per line 'Product - $Price/unit'. Spanish.",[{role:"user",content:[{type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}},{type:"text",text:"Extrae productos y precios"}]}],3000);setText(ext);savePrices(ext);setSaved(true);setTimeout(()=>setSaved(false),2000);}catch{alert("Error. Copia y pega manualmente.");}};reader.readAsDataURL(f);
+    } setUpl(false);};
   const save=()=>{savePrices(text);setSaved(true);setTimeout(()=>setSaved(false),2000);};
   return(<div style={{animation:"fadeIn 0.4s"}}><h2 style={{fontSize:"22px",fontWeight:900,marginBottom:"4px"}}>Lista de Precios</h2><p style={{fontSize:"14px",color:"#64748b",marginBottom:"14px"}}>Sube tu lista y el agente IA la usará</p>
-    <input type="file" ref={ref} onChange={handleFile} accept=".pdf,.txt,.csv" style={{display:"none"}}/>
-    <button onClick={()=>ref.current?.click()} disabled={upl} style={{...S.btn,marginBottom:"10px",background:upl?"#94a3b8":"linear-gradient(135deg,#2563eb,#1d4ed8)"}}>{upl?"Leyendo...":"📄 Subir PDF o TXT"}</button>
-    <div style={{fontSize:"12px",color:"#94a3b8",marginBottom:"8px",textAlign:"center"}}>O pega tu lista aquí:</div>
+    <input type="file" ref={ref} onChange={handleFile} accept=".pdf,.txt,.csv,.xlsx,.xls" style={{display:"none"}}/>
+    <button onClick={()=>ref.current?.click()} disabled={upl} style={{...S.btn,marginBottom:"10px",background:upl?"#94a3b8":"linear-gradient(135deg,#2563eb,#1d4ed8)"}}>{upl?"Leyendo archivo...":"📄 Subir Excel, PDF o TXT"}</button>
+    <div style={{fontSize:"12px",color:"#94a3b8",marginBottom:"8px",textAlign:"center"}}>Acepta: .xlsx, .csv, .pdf, .txt · O pega tu lista aquí:</div>
     <textarea value={text} onChange={e=>setText(e.target.value)} placeholder={"Pechuga de pollo - $3.200/kg\nLomo liso - $8.900/kg\nCostillar cerdo - $4.500/kg"} rows={10} style={{...S.input,resize:"vertical",minHeight:"180px",lineHeight:1.7,marginBottom:"10px"}} onFocus={e=>e.target.style.borderColor="#ea580c"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
     <button onClick={save} style={{...S.btn,background:saved?"#059669":"linear-gradient(135deg,#ea580c,#dc2626)"}}>{saved?"✓ Guardado":"💾 Guardar Precios"}</button>
     {text&&<div style={{marginTop:"14px",padding:"12px",background:"#f0fdf4",borderRadius:"10px",border:"2px solid #bbf7d0"}}><div style={{fontSize:"13px",fontWeight:700,color:"#059669"}}>✓ Lista cargada</div><div style={{fontSize:"12px",color:"#065f46"}}>{text.split("\n").filter(l=>l.trim()).length} productos disponibles para el agente IA</div></div>}
