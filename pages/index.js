@@ -134,41 +134,62 @@ function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,toggleP
   // ── IMPORT CSV/EXCEL ──
   const handleImport=async(e)=>{
     const file=e.target.files[0];if(!file)return;
-    const text=await file.text();
-    const lines=text.split("\n").map(l=>l.trim()).filter(l=>l);
+    let text=await file.text();
+    // Remove BOM
+    text=text.replace(/^\uFEFF/,"");
+    const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(l=>l);
     if(lines.length<2){setImportMsg("❌ El archivo está vacío");setTimeout(()=>setImportMsg(""),3000);return;}
-    // Detect separator
-    const sep=lines[0].includes("\t")?"\t":",";
-    const headers=lines[0].toLowerCase().split(sep).map(h=>h.trim().replace(/"/g,""));
+    // Detect separator: semicolon (Excel español), tab, or comma
+    const firstLine=lines[0];
+    const sep=firstLine.includes(";")?";":firstLine.includes("\t")?"\t":",";
+    const headers=firstLine.toLowerCase().split(sep).map(h=>h.trim().replace(/"/g,"").replace(/\uFEFF/g,""));
     // Find column indices
     const nameIdx=headers.findIndex(h=>h.includes("nombre")||h==="name"||h.includes("cliente"));
     const addrIdx=headers.findIndex(h=>h.includes("direc")||h.includes("address"));
     const phoneIdx=headers.findIndex(h=>h.includes("teléfono")||h.includes("telefono")||h.includes("phone")||h.includes("fono"));
     const typeIdx=headers.findIndex(h=>h.includes("giro")||h.includes("tipo")||h.includes("type")||h.includes("rubro"));
-    const emailIdx=headers.findIndex(h=>h.includes("email")||h.includes("correo")||h.includes("mail"));
+    const emailIdx=headers.findIndex(h=>h.includes("email")||h.includes("correo")||h.includes("e-mail")||h.includes("mail"));
     const waIdx=headers.findIndex(h=>h.includes("whatsapp")||h.includes("wsp")||h.includes("wa"));
     const rutIdx=headers.findIndex(h=>h.includes("rut")||h.includes("ruc")||h.includes("tax"));
-    const locIdx=headers.findIndex(h=>h.includes("localidad")||h.includes("ciudad")||h.includes("city")||h.includes("comuna"));
-    if(nameIdx===-1){setImportMsg("❌ No se encontró la columna 'Cliente'. Usa la plantilla.");setTimeout(()=>setImportMsg(""),4000);return;}
-    let count=0;
+    const locIdx=headers.findIndex(h=>h.includes("localidad")||h.includes("ciudad")||h.includes("city")||h.includes("comuna")||h.includes("zona"));
+    if(nameIdx===-1){setImportMsg("❌ No se encontró columna 'Cliente' o 'Nombre'. Revisa tu archivo.");setTimeout(()=>setImportMsg(""),4000);return;}
+    
+    // Get existing RUTs to avoid duplicates
+    const existingRuts=new Set(clients.filter(c=>c.rut).map(c=>c.rut.trim()));
+    const existingNames=new Set(clients.map(c=>c.name.trim().toLowerCase()));
+    let count=0;let skipped=0;
+    
     for(let i=1;i<lines.length;i++){
       const cols=lines[i].split(sep).map(c=>c.trim().replace(/^"|"$/g,""));
-      const name=cols[nameIdx];if(!name)continue;
+      const name=cols[nameIdx];if(!name||!name.trim())continue;
+      const rut=rutIdx>=0?(cols[rutIdx]||"").trim():"";
+      
+      // Skip duplicates by RUT or exact name
+      if(rut&&existingRuts.has(rut)){skipped++;continue;}
+      if(existingNames.has(name.trim().toLowerCase())){skipped++;continue;}
+      
+      // Clean phone: take first number if multiple (e.g. "987992083 / 987992083")
+      let phone=phoneIdx>=0?(cols[phoneIdx]||""):"";
+      phone=phone.split("/")[0].trim().replace(/\s+/g,"");
+      if(phone&&!phone.startsWith("+")&&phone.length>=8)phone="+56"+phone;
+      
       addClient({
-        id:"imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),
-        name:name,
-        address:addrIdx>=0?cols[addrIdx]||"Sin dirección":"Sin dirección",
-        phone:phoneIdx>=0?cols[phoneIdx]||"":"",
-        type:typeIdx>=0?cols[typeIdx]||"":"",
-        email:emailIdx>=0?cols[emailIdx]||"":"",
-        whatsapp:waIdx>=0?cols[waIdx]||"":"",
-        rut:rutIdx>=0?cols[rutIdx]||"":"",
-        localidad:locIdx>=0?cols[locIdx]||"":"",
+        id:"imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,8)+"_"+i,
+        name:name.trim(),
+        address:addrIdx>=0?(cols[addrIdx]||"").trim()||"Sin dirección":"Sin dirección",
+        phone:phone,
+        type:typeIdx>=0?(cols[typeIdx]||"").trim():"",
+        email:emailIdx>=0?(cols[emailIdx]||"").trim():"",
+        whatsapp:phone,
+        rut:rut,
+        localidad:locIdx>=0?(cols[locIdx]||"").trim():"",
         rating:0,
       });
+      existingRuts.add(rut);
+      existingNames.add(name.trim().toLowerCase());
       count++;
     }
-    setImportMsg(`✅ ${count} clientes importados`);setTimeout(()=>setImportMsg(""),3000);
+    setImportMsg(`✅ ${count} clientes importados${skipped>0?` · ${skipped} duplicados omitidos`:""}`);setTimeout(()=>setImportMsg(""),4000);
     if(fileRef.current)fileRef.current.value="";
   };
 
@@ -193,10 +214,19 @@ function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,toggleP
     const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="mis_clientes_rutaventa.csv";a.click();URL.revokeObjectURL(url);
   };
 
+  const getLocalidad=(c)=>{
+    if(c.localidad&&c.localidad.trim())return c.localidad.trim();
+    // Try to extract city from address (common Chilean format: "Street 123, City")
+    if(c.address){
+      const parts=c.address.split(/[,;]/);
+      if(parts.length>=2){const last=parts[parts.length-1].trim();if(last&&last.length>2&&!/^\d/.test(last))return last;}
+    }
+    return "";
+  };
   const[filterLoc,setFilterLoc]=useState("todas");
-  const localidades=[...new Set(clients.map(c=>c.localidad).filter(l=>l&&l.trim()))].sort();
+  const localidades=[...new Set(clients.map(c=>getLocalidad(c)).filter(l=>l&&l.trim()))].sort();
   const list0=filter==="todos"?clients:filter==="enruta"?clients.filter(c=>route.includes(c.id)):filter==="sinruta"?clients.filter(c=>!route.includes(c.id)):clients.filter(c=>c.status===filter);
-  const list=filterLoc==="todas"?list0:list0.filter(c=>(c.localidad||"")===filterLoc);
+  const list=filterLoc==="todas"?list0:list0.filter(c=>getLocalidad(c)===filterLoc);
   const cnt={todos:clients.length};Object.keys(STATUS).forEach(s=>{cnt[s]=clients.filter(c=>c.status===s).length;});
   return(<div style={{animation:"fadeIn 0.4s"}}><h2 style={{fontSize:"22px",fontWeight:900,marginBottom:"4px"}}>Mi Cartera</h2><p style={{fontSize:"14px",color:"#64748b",marginBottom:"14px"}}>{clients.length} clientes · {cnt.cliente||0} activos{filterLoc!=="todas"&&` · 📍 ${filterLoc}`}</p>
     {/* ADD / IMPORT / EXPORT BUTTONS */}
@@ -225,7 +255,26 @@ function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,toggleP
     {localidades.length>1&&<div style={{display:"flex",gap:"5px",flexWrap:"wrap",marginBottom:"14px"}}><Pill l="📍 Todas" on={filterLoc==="todas"} fn={()=>setFilterLoc("todas")} c="#0ea5e9"/>{localidades.map(loc=><Pill key={loc} l={`📍 ${loc}`} on={filterLoc===loc} fn={()=>setFilterLoc(loc)} c="#0ea5e9"/>)}</div>}
     {list.length===0&&<div style={{textAlign:"center",padding:"44px",color:"#94a3b8"}}><div style={{fontSize:"36px",marginBottom:"8px"}}>📋</div>{clients.length===0?"Agrega clientes con el botón verde ☝️ o busca en 🔍":"Sin resultados"}</div>}
     {list.map((c,i)=>{const cfg=STATUS[c.status];const open=openId===c.id;const inR=route.includes(c.id);return(<div key={c.id} style={{...S.card,padding:0,overflow:"hidden",animation:`fadeIn 0.3s ease ${i*0.03}s both`}}>
-      <div onClick={()=>setOpenId(open?null:c.id)} style={{padding:"14px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{display:"flex",alignItems:"center",gap:"6px",marginBottom:"2px",flexWrap:"wrap"}}><span style={{fontSize:"15px",fontWeight:800}}>{c.name}</span><span style={{fontSize:"11px",padding:"2px 7px",borderRadius:"8px",background:cfg.bg,color:cfg.color,fontWeight:700}}>{cfg.icon}{cfg.label}</span>{c.paid==="yes"&&<span style={{fontSize:"10px",padding:"2px 6px",borderRadius:"6px",background:"#d4edcc",color:"#7ACE67",fontWeight:700}}>💰 Pagó</span>}{c.paid==="no"&&<span style={{fontSize:"10px",padding:"2px 6px",borderRadius:"6px",background:"#fee2e2",color:"#c0392b",fontWeight:700}}>⚠️ Debe</span>}{inR&&<span style={{fontSize:"10px",padding:"2px 5px",borderRadius:"6px",background:"#e8f5e9",color:"#31B189",fontWeight:700}}>🗺️</span>}</div><div style={{fontSize:"12px",color:"#64748b"}}>{c.rut&&`${c.rut} · `}{c.address}{c.localidad&&`, ${c.localidad}`}{c.type&&` · ${c.type}`}</div></div><span style={{color:"#94a3b8",transform:open?"rotate(180deg)":"none",transition:"0.2s"}}>▾</span></div>
+      <div onClick={()=>setOpenId(open?null:c.id)} style={{padding:"14px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:"6px",marginBottom:"4px",flexWrap:"wrap"}}>
+            <span style={{fontSize:"16px",fontWeight:800}}>{c.name}</span>
+            <span style={{fontSize:"11px",padding:"2px 7px",borderRadius:"8px",background:cfg.bg,color:cfg.color,fontWeight:700}}>{cfg.icon}{cfg.label}</span>
+            {c.paid==="yes"&&<span style={{fontSize:"10px",padding:"2px 6px",borderRadius:"6px",background:"#d4edcc",color:"#7ACE67",fontWeight:700}}>💰 Pagó</span>}
+            {c.paid==="no"&&<span style={{fontSize:"10px",padding:"2px 6px",borderRadius:"6px",background:"#fee2e2",color:"#c0392b",fontWeight:700}}>⚠️ Debe</span>}
+            {inR&&<span style={{fontSize:"10px",padding:"2px 5px",borderRadius:"6px",background:"#e8f5e9",color:"#31B189",fontWeight:700}}>🗺️</span>}
+          </div>
+          {c.rut&&<div style={{fontSize:"12px",color:"#94a3b8",marginBottom:"2px"}}>RUT: {c.rut}</div>}
+          {c.address&&c.address!=="Sin dirección"&&<div style={{fontSize:"13px",color:"#475569",marginBottom:"2px"}}>📍 {c.address}{c.localidad&&`, ${c.localidad}`}</div>}
+          {!c.address&&c.localidad&&<div style={{fontSize:"13px",color:"#475569",marginBottom:"2px"}}>📍 {c.localidad}</div>}
+          <div style={{display:"flex",gap:"10px",flexWrap:"wrap",marginTop:"2px"}}>
+            {c.type&&<span style={{fontSize:"12px",color:"#64748b"}}>🏢 {c.type}</span>}
+            {(c.phone||c.whatsapp)&&<span style={{fontSize:"12px",color:"#64748b"}}>📞 {c.phone||c.whatsapp}</span>}
+            {c.email&&<span style={{fontSize:"12px",color:"#64748b"}}>📧 {c.email}</span>}
+          </div>
+        </div>
+        <span style={{color:"#94a3b8",transform:open?"rotate(180deg)":"none",transition:"0.2s",marginTop:"4px"}}>▾</span>
+      </div>
       {open&&<div style={{padding:"0 14px 14px",borderTop:"2px solid #f1f5f9"}}><div style={{...S.section,marginTop:"10px"}}>Estado</div><div style={{display:"flex",gap:"4px",flexWrap:"wrap",marginBottom:"10px"}}>{Object.entries(STATUS).map(([k,v])=><button key={k} onClick={()=>setStatus(c.id,k)} style={{padding:"6px 10px",borderRadius:"8px",fontSize:"12px",fontWeight:700,cursor:"pointer",background:c.status===k?v.color:"#f8fafc",color:c.status===k?"#fff":v.color,border:`2px solid ${c.status===k?v.color:"#e2e8f0"}`}}>{v.icon}{v.label}</button>)}</div>
         <div style={{display:"flex",gap:"6px",marginBottom:"10px",flexWrap:"wrap"}}>{!inR&&<button onClick={()=>toRoute(c.id)} style={{...S.btnSm,color:"#31B189",borderColor:"#b2dfdb",background:"#e8f5e9",fontSize:"12px"}}>🗺️ A ruta</button>}<button onClick={()=>togglePaid(c.id)} style={{...S.btnSm,color:c.paid==="yes"?"#7ACE67":c.paid==="no"?"#c0392b":"#64748b",borderColor:c.paid==="yes"?"#b9e6a0":c.paid==="no"?"#fecaca":"#e2e8f0",background:c.paid==="yes"?"#edf7e6":c.paid==="no"?"#fef2f2":"#f8fafc",fontSize:"12px"}}>{c.paid==="yes"?"💰 Pagó":c.paid==="no"?"⚠️ Debe":"💲 Marcar pago"}</button><button onClick={()=>delClient(c.id)} style={{...S.btnSm,color:"#c0392b",borderColor:"#fecaca",background:"#fef2f2",fontSize:"12px"}}>🗑️ Eliminar</button></div>
         {/* CONTACT BUTTONS */}
@@ -414,7 +463,7 @@ COBRANZA Y DEUDAS: Eres experto en cobranza comercial chilena. Conoces:
 - Referencia a normativa chilena cuando corresponda
 
 PSICOLOGÍA: 1)VALIDA acciones 2)Racha ${streak.count}d 3)UNA acción concreta 4)Guiones EXACTOS para copiar 5)"${clients.filter(c=>c.status==="nuevo").length} sin contactar—otro vendedor puede llegar antes" 6)"Seguimiento en 48h = 3x más ventas"
-Max 400 palabras. Termina con 1 acción concreta. ${ctx}`,[...msgs.filter((_,i)=>i>0),um].map(m=>({role:m.role,content:m.content})),1500);
+Max 250 palabras. Termina con 1 acción concreta. ${ctx}`,[...msgs.filter((_,i)=>i>0),um].map(m=>({role:m.role,content:m.content})),1500);
       setMsgs(p=>[...p,{role:"assistant",content:reply,ts:Date.now()}]);
     }catch{setMsgs(p=>[...p,{role:"assistant",content:"Error. Intenta de nuevo.",ts:Date.now()}]);}setBusy(false);};
   return(<div style={{animation:"fadeIn 0.4s",display:"flex",flexDirection:"column",height:"calc(100vh - 160px)"}}>
