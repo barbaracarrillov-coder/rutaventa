@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     }
 
     // Transform Google Places results to our format
-    const results = data.results.slice(0, 8).map(place => ({
+    const results = data.results.slice(0, 30).map(place => ({
       id: place.place_id,
       name: place.name,
       address: place.formatted_address
