@@ -377,7 +377,14 @@ function AG({clients,routeClients,priceText,streak,userName,todaysActions,uid,pr
   const clearChat=()=>{setMsgs(defaultMsg);sSet(`${uid}-chat`,{messages:defaultMsg});};
 
   useEffect(()=>{if(ref.current)ref.current.scrollTop=ref.current.scrollHeight;},[msgs]);
-  const QA=[{label:"🎯 Pitch",m:"Prepárame un pitch corto para un cliente nuevo."},{label:"💬 Caro",m:"Me dicen caro. Dame el guión para responder."},{label:"💰 Cotización",m:"Arma cotización con mis precios para un restaurante."},{label:"📝 WhatsApp",m:"Mensaje de seguimiento para un cliente."},{label:"📊 Cartera",m:`Analiza: ${clients.length} en cartera, ${clients.filter(c=>c.status==="cliente").length} activos, ${clients.filter(c=>c.status==="nuevo").length} nuevos. ¿Qué hago?`},{label:"🔥 Motívame",m:"Estoy desmotivado. Necesito un empujón."}];
+  const QA=[
+    {label:"🚀 ¿Qué hago ahora?",m:`Mira mi cartera completa: ${clients.length} clientes total, ${clients.filter(c=>c.status==="nuevo").length} sin contactar, ${clients.filter(c=>c.status==="contactado").length} contactados esperando, ${clients.filter(c=>c.status==="interesado").length} interesados, ${clients.filter(c=>c.paid==="no").length} que me deben plata. Tengo ${routeClients.length} paradas en la ruta de hoy. Dime LA ÚNICA acción más rentable que debería hacer AHORA MISMO y dame el guión exacto.`},
+    {label:"💰 Cotización rápida",m:"Arma una cotización profesional usando mis precios y ofertas de la semana. Que quede lista para copiar y enviar por WhatsApp. Formato limpio con productos, precios, condiciones de pago y datos de mi empresa."},
+    {label:"💬 Escribir WhatsApp",m:"Necesito un mensaje de WhatsApp. Pregúntame para quién es (cliente nuevo, seguimiento, reactivar uno que dejó de comprar, o agradecer una compra) y genérame el mensaje perfecto listo para copiar."},
+    {label:"🛡️ Me dijeron NO",m:"Un cliente me rechazó o me puso una objeción. Pregúntame qué me dijo exactamente y dame el contraargumento perfecto para responderle ahora mismo por WhatsApp o en persona."},
+    {label:"🏦 Cobrar deuda",m:`Necesito cobrar una deuda. Tengo ${clients.filter(c=>c.paid==="no").length} clientes que me deben. Pregúntame el caso específico (cheque protestado, factura vencida, pago atrasado) y dame 3 versiones del mensaje: una amigable, una firme, y un último aviso. Que sean profesionales pero directos, estilo chileno. Incluye referencia a las consecuencias legales si corresponde (DICOM, protesto, etc).`},
+    {label:"📊 Resumen semanal",m:`Dame el resumen de mi situación: ${clients.length} clientes totales, ${clients.filter(c=>c.status==="cliente").length} activos comprando, ${clients.filter(c=>c.status==="nuevo").length} sin contactar, ${clients.filter(c=>c.status==="interesado").length} interesados sin cerrar, ${clients.filter(c=>c.paid==="no").length} que me deben plata, racha de ${streak.count} días. Dime qué hice bien, qué estoy descuidando, y las 3 acciones más importantes para esta semana.`}
+  ];
   const send=async c=>{const text=c||input;if(!text.trim()||busy)return;setInput("");const um={role:"user",content:text,ts:Date.now()};setMsgs(p=>[...p,um]);setBusy(true);
     try{
       const profileCtx=hasProfile?`
@@ -399,8 +406,15 @@ IMPORTANTE: Conoces la empresa del vendedor y sus productos. USA esta informaci�
 - Cuando redacte mensajes, firma con los datos de la empresa
 - Si tiene ofertas de la semana, SIEMPRE menciónalas en pitches y cotizaciones
 
+COBRANZA Y DEUDAS: Eres experto en cobranza comercial chilena. Conoces:
+- Cheques protestados: consecuencias legales, DICOM, boletín comercial
+- Facturas vencidas: plazos legales, intereses moratorios
+- Mensajes de cobranza en 3 niveles: amigable (recordatorio), firme (con plazo), último aviso (con consecuencias)
+- Siempre profesional, nunca amenazante. Firme pero respetuoso.
+- Referencia a normativa chilena cuando corresponda
+
 PSICOLOGÍA: 1)VALIDA acciones 2)Racha ${streak.count}d 3)UNA acción concreta 4)Guiones EXACTOS para copiar 5)"${clients.filter(c=>c.status==="nuevo").length} sin contactar—otro vendedor puede llegar antes" 6)"Seguimiento en 48h = 3x más ventas"
-Max 200 palabras. Termina con 1 acción concreta. ${ctx}`,[...msgs.filter((_,i)=>i>0),um].map(m=>({role:m.role,content:m.content})),1000);
+Max 250 palabras. Termina con 1 acción concreta. ${ctx}`,[...msgs.filter((_,i)=>i>0),um].map(m=>({role:m.role,content:m.content})),1500);
       setMsgs(p=>[...p,{role:"assistant",content:reply,ts:Date.now()}]);
     }catch{setMsgs(p=>[...p,{role:"assistant",content:"Error. Intenta de nuevo.",ts:Date.now()}]);}setBusy(false);};
   return(<div style={{animation:"fadeIn 0.4s",display:"flex",flexDirection:"column",height:"calc(100vh - 160px)"}}>
