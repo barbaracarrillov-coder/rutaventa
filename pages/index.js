@@ -113,14 +113,14 @@ function Prospects({clients,addClient}){const[q,setQ]=useState("");const[loc,set
 function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,togglePaid}){const[filter,setFilter]=useState("todos");const[openId,setOpenId]=useState(null);const[note,setNote]=useState("");
   const[showAdd,setShowAdd]=useState(false);const[newName,setNewName]=useState("");const[newAddr,setNewAddr]=useState("");const[newPhone,setNewPhone]=useState("");const[newType,setNewType]=useState("");const[newEmail,setNewEmail]=useState("");const[newWhatsapp,setNewWhatsapp]=useState("");const[newRut,setNewRut]=useState("");const[newLocalidad,setNewLocalidad]=useState("");
   const fileRef=useRef(null);const[importMsg,setImportMsg]=useState("");
-  const handleAddManual=()=>{if(!newName.trim())return;addClient({id:"m_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),name:newName.trim(),address:newAddr.trim()||"Sin dirección",phone:newPhone.trim(),type:newType.trim()||"Cliente directo",rating:0,email:newEmail.trim(),whatsapp:newWhatsapp.trim(),rut:newRut.trim(),localidad:newLocalidad.trim()});setNewName("");setNewAddr("");setNewPhone("");setNewType("");setNewEmail("");setNewWhatsapp("");setNewRut("");setNewLocalidad("");setShowAdd(false);};
+  const handleAddManual=()=>{if(!newName.trim())return;addClient({id:"m_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),name:newName.trim(),address:newAddr.trim()||"Sin dirección",phone:newPhone.trim(),type:newType.trim()||"",rating:0,email:newEmail.trim(),whatsapp:newPhone.trim(),rut:newRut.trim(),localidad:newLocalidad.trim()});setNewName("");setNewAddr("");setNewPhone("");setNewType("");setNewEmail("");setNewWhatsapp("");setNewRut("");setNewLocalidad("");setShowAdd(false);};
 
   // ── DOWNLOAD TEMPLATE ──
   const downloadTemplate=()=>{
-    const header="RUT,Cliente,Dirección,Localidad,Giro,Email,Teléfono,WhatsApp";
-    const example1="12.345.678-9,Restaurante El Fogón,Av. Angelmó 1876,Puerto Montt,Restaurante,contacto@elfogon.cl,+56912345678,+56912345678";
-    const example2="98.765.432-1,Carnicería Don Pedro,Vicente Pérez Rosales 890,Puerto Varas,Carnicería,donpedro@gmail.com,+56987654321,+56987654321";
-    const example3="11.222.333-4,Hotel Los Lagos,Gramado 156,Puerto Varas,Hotelería,reservas@loslagos.cl,+56911112222,+56911112222";
+    const header="RUT,Cliente,Dirección,Localidad,Giro,Email,Teléfono";
+    const example1="12.345.678-9,Restaurante El Fogón,Av. Angelmó 1876,Puerto Montt,Restaurante,contacto@elfogon.cl,+56912345678";
+    const example2="98.765.432-1,Carnicería Don Pedro,Vicente Pérez Rosales 890,Puerto Varas,Carnicería,donpedro@gmail.com,+56987654321";
+    const example3="11.222.333-4,Hotel Los Lagos,Gramado 156,Puerto Varas,Hotelería,reservas@loslagos.cl,+56911112222";
     const csv=header+"\n"+example1+"\n"+example2+"\n"+example3+"\n";
     const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
     const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="plantilla_rutaventa.csv";a.click();URL.revokeObjectURL(url);
@@ -170,7 +170,7 @@ function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,toggleP
   // ── EXPORT CSV ──
   const handleExport=()=>{
     if(clients.length===0)return;
-    const header="RUT,Cliente,Dirección,Localidad,Giro,Email,Teléfono,WhatsApp,Estado,Último Contacto,Pagó";
+    const header="RUT,Cliente,Dirección,Localidad,Giro,Email,Teléfono,Estado,Último Contacto,Pagó";
     const rows=clients.map(c=>[
       `"${c.rut||""}"`,
       `"${(c.name||"").replace(/"/g,'""')}"`,
@@ -178,8 +178,7 @@ function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,toggleP
       `"${c.localidad||""}"`,
       `"${c.type||""}"`,
       `"${c.email||""}"`,
-      `"${c.phone||""}"`,
-      `"${c.whatsapp||""}"`,
+      `"${c.phone||c.whatsapp||""}"`,
       `"${c.status||""}"`,
       `"${c.lastContact||""}"`,
       `"${c.paid||""}"`,
@@ -210,8 +209,7 @@ function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,toggleP
       <input value={newLocalidad} onChange={e=>setNewLocalidad(e.target.value)} placeholder="Localidad (ej: Puerto Montt)" style={{...S.input,marginBottom:"8px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
       <input value={newType} onChange={e=>setNewType(e.target.value)} placeholder="Giro (ej: Restaurante, Carnicería, Hotelería)" style={{...S.input,marginBottom:"8px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
       <input value={newEmail} onChange={e=>setNewEmail(e.target.value)} placeholder="📧 Email (opcional)" type="email" style={{...S.input,marginBottom:"8px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
-      <input value={newPhone} onChange={e=>setNewPhone(e.target.value)} placeholder="📞 Teléfono (ej: +56 9 1234 5678)" style={{...S.input,marginBottom:"8px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
-      <input value={newWhatsapp} onChange={e=>setNewWhatsapp(e.target.value)} placeholder="💬 WhatsApp (ej: +56912345678)" style={{...S.input,marginBottom:"10px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
+      <input value={newPhone} onChange={e=>setNewPhone(e.target.value)} placeholder="📞 Teléfono / WhatsApp (ej: +56 9 1234 5678)" style={{...S.input,marginBottom:"10px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
       <div style={{display:"flex",gap:"8px"}}><button onClick={handleAddManual} style={{...S.btn,flex:1,background:"linear-gradient(135deg,#059669,#10b981)",fontSize:"15px",padding:"12px"}}>✓ Guardar</button><button onClick={()=>setShowAdd(false)} style={{...S.btnSm,flex:0,padding:"12px 18px"}}>Cancelar</button></div>
     </div>}
     <div style={{display:"flex",gap:"5px",flexWrap:"wrap",marginBottom:"14px"}}><Pill l={`Todos(${cnt.todos})`} on={filter==="todos"} fn={()=>setFilter("todos")} c="#64748b"/>{Object.entries(STATUS).map(([k,v])=><Pill key={k} l={`${v.icon}${v.label}(${cnt[k]||0})`} on={filter===k} fn={()=>setFilter(k)} c={v.color}/>)}</div>
