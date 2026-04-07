@@ -170,4 +170,3 @@ Max 200 palabras. Termina con 1 acción. ${ctx}`,[...msgs.filter((_,i)=>i>0),um]
     <div style={{display:"flex",gap:"8px",paddingTop:"8px",borderTop:"2px solid #e2e8f0"}}><input value={input} onChange={e=>setInput(e.target.value)} placeholder="Pregúntame..." onKeyDown={e=>e.key==="Enter"&&send()} style={{...S.input,flex:1}} onFocus={e=>e.target.style.borderColor="#ea580c"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/><button onClick={()=>send()} disabled={busy} style={{padding:"12px 16px",background:busy?"#94a3b8":"linear-gradient(135deg,#ea580c,#dc2626)",border:"none",borderRadius:"12px",color:"#fff",fontWeight:900,fontSize:"18px",cursor:busy?"not-allowed":"pointer"}}>→</button></div>
   </div>);
 }
-
