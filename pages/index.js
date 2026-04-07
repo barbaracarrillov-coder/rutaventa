@@ -83,7 +83,7 @@ function MainApp({user,onLogout}){
         {tab==="clients"&&<CL clients={clients} setStatus={setStatus} addNote={addNote} delClient={delClient} toRoute={toRoute} route={route} addClient={addClient} togglePaid={togglePaid}/>}
         {tab==="route"&&<RT routeClients={routeClients} offRoute={offRoute} moveRoute={moveRoute} setStatus={setStatus} reorderRoute={reorderRoute}/>}
         {tab==="prices"&&<PR priceText={priceText} savePrices={savePrices}/>}
-        {tab==="agent"&&<AG clients={clients} routeClients={routeClients} priceText={priceText} streak={streak} userName={user.name} todaysActions={todaysActions}/>}
+        {tab==="agent"&&<AG clients={clients} routeClients={routeClients} priceText={priceText} streak={streak} userName={user.name} todaysActions={todaysActions} uid={uid}/>}
       </main>
     </div>
   </>);
@@ -280,23 +280,42 @@ function PR({priceText,savePrices}){const[text,setText]=useState(priceText);cons
   </div>);
 }
 
-// ━━━ AGENT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function AG({clients,routeClients,priceText,streak,userName,todaysActions}){const fn=userName.split(" ")[0];
+// ━━━ AGENT (with 3-day chat history) ━━━━━━━━━━━━━━━━━
+function AG({clients,routeClients,priceText,streak,userName,todaysActions,uid}){const fn=userName.split(" ")[0];
   const welcome=streak.count>=5?`🔥 ¡${fn}, llevas ${streak.count} días de racha! Top 10%. Los que mantienen 20+ duplican su cartera.\n\n`:streak.count>=2?`💪 ${fn}, van ${streak.count} días de racha.\n\n`:`¡Hola ${fn}! Hoy empieza tu racha. 🔥\n\n`;
   const stats=`📊 Cartera: ${clients.length} en cartera, ${clients.filter(c=>c.status==="cliente").length} activos, ${clients.filter(c=>c.status==="nuevo").length} sin contactar.\n${todaysActions>0?`✅ Hoy: ${todaysActions} acciones.`:"🎯 Aún no haces contactos hoy."}\n\nTe ayudo con: 🎯Pitch · 💬Objeciones · 💰Cotización · 📝WhatsApp · 📊Cartera\n\n¿Qué necesitas?`;
-  const[msgs,setMsgs]=useState([{role:"assistant",content:welcome+stats}]);const[input,setInput]=useState("");const[busy,setBusy]=useState(false);const ref=useRef(null);
+  const defaultMsg=[{role:"assistant",content:welcome+stats,ts:Date.now()}];
+
+  // Load saved chat history (max 3 days old)
+  const loadChat=()=>{
+    const saved=sGet(`${uid}-chat`);if(!saved||!saved.messages)return defaultMsg;
+    const threeDaysAgo=Date.now()-(3*24*60*60*1000);
+    const valid=saved.messages.filter(m=>!m.ts||m.ts>threeDaysAgo);
+    return valid.length>0?valid:defaultMsg;
+  };
+
+  const[msgs,setMsgs]=useState(defaultMsg);const[input,setInput]=useState("");const[busy,setBusy]=useState(false);const ref=useRef(null);const[chatLoaded,setChatLoaded]=useState(false);
+
+  // Load chat on mount
+  useEffect(()=>{const saved=loadChat();setMsgs(saved);setChatLoaded(true);},[uid]);
+
+  // Save chat whenever messages change
+  useEffect(()=>{if(chatLoaded&&msgs.length>0)sSet(`${uid}-chat`,{messages:msgs});},[msgs,chatLoaded]);
+
+  const clearChat=()=>{setMsgs(defaultMsg);sSet(`${uid}-chat`,{messages:defaultMsg});};
+
   useEffect(()=>{if(ref.current)ref.current.scrollTop=ref.current.scrollHeight;},[msgs]);
   const QA=[{label:"🎯 Pitch",m:"Prepárame un pitch corto para un cliente nuevo."},{label:"💬 Caro",m:"Me dicen caro. Dame el guión para responder."},{label:"💰 Cotización",m:"Arma cotización con mis precios para un restaurante."},{label:"📝 WhatsApp",m:"Mensaje de seguimiento para un cliente."},{label:"📊 Cartera",m:`Analiza: ${clients.length} en cartera, ${clients.filter(c=>c.status==="cliente").length} activos, ${clients.filter(c=>c.status==="nuevo").length} nuevos. ¿Qué hago?`},{label:"🔥 Motívame",m:"Estoy desmotivado. Necesito un empujón."}];
-  const send=async c=>{const text=c||input;if(!text.trim()||busy)return;setInput("");const um={role:"user",content:text};setMsgs(p=>[...p,um]);setBusy(true);
+  const send=async c=>{const text=c||input;if(!text.trim()||busy)return;setInput("");const um={role:"user",content:text,ts:Date.now()};setMsgs(p=>[...p,um]);setBusy(true);
     try{const ctx=`VENDEDOR: ${userName}, racha ${streak.count}d, ${clients.length} en cartera, ${clients.filter(c=>c.status==="cliente").length} activos, ${clients.filter(c=>c.status==="nuevo").length} nuevos, ${routeClients.length} paradas hoy.\n${priceText?`PRECIOS:\n${priceText}`:"(Sin precios)"}`;
       const reply=await callAI(`Coach de ventas de ${fn}. Vendedor estrella chileno — directo, práctico. Chilenismos moderados.
 PSICOLOGÍA: 1)VALIDA acciones 2)Racha ${streak.count}d 3)UNA acción concreta 4)Guiones EXACTOS 5)"${clients.filter(c=>c.status==="nuevo").length} sin contactar—otro vendedor puede llegar antes" 6)"Seguimiento en 48h = 3x más ventas"
 Si tiene precios, úsalos. Si no, sugiere subirlos en 💰.
 Max 200 palabras. Termina con 1 acción. ${ctx}`,[...msgs.filter((_,i)=>i>0),um].map(m=>({role:m.role,content:m.content})),1000);
-      setMsgs(p=>[...p,{role:"assistant",content:reply}]);
-    }catch{setMsgs(p=>[...p,{role:"assistant",content:"Error. Intenta de nuevo."}]);}setBusy(false);};
+      setMsgs(p=>[...p,{role:"assistant",content:reply,ts:Date.now()}]);
+    }catch{setMsgs(p=>[...p,{role:"assistant",content:"Error. Intenta de nuevo.",ts:Date.now()}]);}setBusy(false);};
   return(<div style={{animation:"fadeIn 0.4s",display:"flex",flexDirection:"column",height:"calc(100vh - 160px)"}}>
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"10px"}}><div><h2 style={{fontSize:"20px",fontWeight:900}}>Agente de Ventas</h2><p style={{fontSize:"12px",color:"#64748b"}}>Tu coach personal</p></div><div style={{background:streak.count>=5?"linear-gradient(135deg,#ea580c,#dc2626)":"#fff7ed",padding:"6px 12px",borderRadius:"10px",border:streak.count>=5?"none":"2px solid #fed7aa",textAlign:"center"}}><div style={{fontSize:"16px",fontWeight:900,color:streak.count>=5?"#fff":"#ea580c"}}>🔥{streak.count}</div><div style={{fontSize:"9px",fontWeight:700,color:streak.count>=5?"rgba(255,255,255,0.8)":"#92400e"}}>RACHA</div></div></div>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"10px"}}><div><h2 style={{fontSize:"20px",fontWeight:900}}>Agente de Ventas</h2><p style={{fontSize:"12px",color:"#64748b"}}>Tu coach personal</p></div><div style={{display:"flex",gap:"6px",alignItems:"center"}}>{msgs.length>1&&<button onClick={clearChat} style={{padding:"4px 8px",background:"#f1f5f9",border:"2px solid #e2e8f0",borderRadius:"6px",color:"#94a3b8",fontSize:"10px",fontWeight:600,cursor:"pointer"}}>🗑️ Limpiar</button>}<div style={{background:streak.count>=5?"linear-gradient(135deg,#ea580c,#dc2626)":"#fff7ed",padding:"6px 12px",borderRadius:"10px",border:streak.count>=5?"none":"2px solid #fed7aa",textAlign:"center"}}><div style={{fontSize:"16px",fontWeight:900,color:streak.count>=5?"#fff":"#ea580c"}}>🔥{streak.count}</div><div style={{fontSize:"9px",fontWeight:700,color:streak.count>=5?"rgba(255,255,255,0.8)":"#92400e"}}>RACHA</div></div></div></div>
     {msgs.length<=1&&<div style={{display:"flex",gap:"5px",flexWrap:"wrap",marginBottom:"10px"}}>{QA.map(q=><button key={q.label} onClick={()=>send(q.m)} style={{padding:"7px 10px",background:"#fff",border:"2px solid #e2e8f0",borderRadius:"8px",color:"#475569",fontSize:"12px",fontWeight:600,cursor:"pointer",textAlign:"left"}}>{q.label}</button>)}</div>}
     <div ref={ref} style={{flex:1,overflow:"auto",display:"flex",flexDirection:"column",gap:"8px",paddingBottom:"6px"}}>{msgs.map((m,i)=><div key={i} style={{alignSelf:m.role==="user"?"flex-end":"flex-start",maxWidth:"88%"}}><div style={{padding:"12px 14px",borderRadius:"14px",fontSize:"14px",lineHeight:1.7,whiteSpace:"pre-wrap",...(m.role==="user"?{background:"linear-gradient(135deg,#ea580c,#dc2626)",color:"#fff",borderBottomRightRadius:"4px"}:{background:"#fff",color:"#1e293b",border:"2px solid #e2e8f0",borderBottomLeftRadius:"4px"})}}>{m.content}</div></div>)}{busy&&<div style={{alignSelf:"flex-start",padding:"12px 14px",borderRadius:"14px",background:"#fff",border:"2px solid #e2e8f0"}}><span style={{color:"#94a3b8"}}>Pensando...</span></div>}</div>
     <div style={{display:"flex",gap:"8px",paddingTop:"8px",borderTop:"2px solid #e2e8f0"}}><input value={input} onChange={e=>setInput(e.target.value)} placeholder="Pregúntame..." onKeyDown={e=>e.key==="Enter"&&send()} style={{...S.input,flex:1}} onFocus={e=>e.target.style.borderColor="#ea580c"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/><button onClick={()=>send()} disabled={busy} style={{padding:"12px 16px",background:busy?"#94a3b8":"linear-gradient(135deg,#ea580c,#dc2626)",border:"none",borderRadius:"12px",color:"#fff",fontWeight:900,fontSize:"18px",cursor:busy?"not-allowed":"pointer"}}>→</button></div>
