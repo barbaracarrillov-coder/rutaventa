@@ -111,11 +111,90 @@ function Prospects({clients,addClient}){const[q,setQ]=useState("");const[loc,set
 // ━━━ CLIENTS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,togglePaid}){const[filter,setFilter]=useState("todos");const[openId,setOpenId]=useState(null);const[note,setNote]=useState("");
   const[showAdd,setShowAdd]=useState(false);const[newName,setNewName]=useState("");const[newAddr,setNewAddr]=useState("");const[newPhone,setNewPhone]=useState("");const[newType,setNewType]=useState("");const[newEmail,setNewEmail]=useState("");const[newWhatsapp,setNewWhatsapp]=useState("");
+  const fileRef=useRef(null);const[importMsg,setImportMsg]=useState("");
   const handleAddManual=()=>{if(!newName.trim())return;addClient({id:"m_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),name:newName.trim(),address:newAddr.trim()||"Sin dirección",phone:newPhone.trim(),type:newType.trim()||"Cliente directo",rating:0,email:newEmail.trim(),whatsapp:newWhatsapp.trim()});setNewName("");setNewAddr("");setNewPhone("");setNewType("");setNewEmail("");setNewWhatsapp("");setShowAdd(false);};
+
+  // ── DOWNLOAD TEMPLATE ──
+  const downloadTemplate=()=>{
+    const header="Nombre,Dirección,Teléfono,Tipo,Email,WhatsApp";
+    const example1="Restaurante El Fogón,Av. Angelmó 1876 Puerto Montt,+56912345678,Restaurante,contacto@elfogon.cl,+56912345678";
+    const example2="Carnicería Don Pedro,Vicente Pérez Rosales 890 Puerto Varas,+56987654321,Carnicería,donpedro@gmail.com,+56987654321";
+    const example3="Hotel Los Lagos,Gramado 156 Puerto Varas,+56911112222,Hotel,reservas@loslagos.cl,+56911112222";
+    const csv=header+"\n"+example1+"\n"+example2+"\n"+example3+"\n";
+    const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
+    const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="plantilla_rutaventa.csv";a.click();URL.revokeObjectURL(url);
+  };
+
+  // ── IMPORT CSV/EXCEL ──
+  const handleImport=async(e)=>{
+    const file=e.target.files[0];if(!file)return;
+    const text=await file.text();
+    const lines=text.split("\n").map(l=>l.trim()).filter(l=>l);
+    if(lines.length<2){setImportMsg("❌ El archivo está vacío");setTimeout(()=>setImportMsg(""),3000);return;}
+    // Detect separator
+    const sep=lines[0].includes("\t")?"\t":",";
+    const headers=lines[0].toLowerCase().split(sep).map(h=>h.trim().replace(/"/g,""));
+    // Find column indices
+    const nameIdx=headers.findIndex(h=>h.includes("nombre")||h==="name");
+    const addrIdx=headers.findIndex(h=>h.includes("direc")||h.includes("address"));
+    const phoneIdx=headers.findIndex(h=>h.includes("teléfono")||h.includes("telefono")||h.includes("phone")||h.includes("fono"));
+    const typeIdx=headers.findIndex(h=>h.includes("tipo")||h.includes("type")||h.includes("rubro"));
+    const emailIdx=headers.findIndex(h=>h.includes("email")||h.includes("correo")||h.includes("mail"));
+    const waIdx=headers.findIndex(h=>h.includes("whatsapp")||h.includes("wsp")||h.includes("wa"));
+    if(nameIdx===-1){setImportMsg("❌ No se encontró la columna 'Nombre'. Usa la plantilla.");setTimeout(()=>setImportMsg(""),4000);return;}
+    let count=0;
+    for(let i=1;i<lines.length;i++){
+      const cols=lines[i].split(sep).map(c=>c.trim().replace(/^"|"$/g,""));
+      const name=cols[nameIdx];if(!name)continue;
+      addClient({
+        id:"imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),
+        name:name,
+        address:addrIdx>=0?cols[addrIdx]||"Sin dirección":"Sin dirección",
+        phone:phoneIdx>=0?cols[phoneIdx]||"":"",
+        type:typeIdx>=0?cols[typeIdx]||"Cliente":"Cliente",
+        email:emailIdx>=0?cols[emailIdx]||"":"",
+        whatsapp:waIdx>=0?cols[waIdx]||"":"",
+        rating:0,
+      });
+      count++;
+    }
+    setImportMsg(`✅ ${count} clientes importados`);setTimeout(()=>setImportMsg(""),3000);
+    if(fileRef.current)fileRef.current.value="";
+  };
+
+  // ── EXPORT CSV ──
+  const handleExport=()=>{
+    if(clients.length===0)return;
+    const header="Nombre,Dirección,Teléfono,Tipo,Email,WhatsApp,Estado,Último Contacto,Pagó";
+    const rows=clients.map(c=>[
+      `"${(c.name||"").replace(/"/g,'""')}"`,
+      `"${(c.address||"").replace(/"/g,'""')}"`,
+      `"${c.phone||""}"`,
+      `"${c.type||""}"`,
+      `"${c.email||""}"`,
+      `"${c.whatsapp||""}"`,
+      `"${c.status||""}"`,
+      `"${c.lastContact||""}"`,
+      `"${c.paid||""}"`,
+    ].join(","));
+    const csv=header+"\n"+rows.join("\n");
+    const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
+    const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="mis_clientes_rutaventa.csv";a.click();URL.revokeObjectURL(url);
+  };
+
   const list=filter==="todos"?clients:clients.filter(c=>c.status===filter);const cnt={todos:clients.length};Object.keys(STATUS).forEach(s=>{cnt[s]=clients.filter(c=>c.status===s).length;});
   return(<div style={{animation:"fadeIn 0.4s"}}><h2 style={{fontSize:"22px",fontWeight:900,marginBottom:"4px"}}>Mi Cartera</h2><p style={{fontSize:"14px",color:"#64748b",marginBottom:"14px"}}>{clients.length} prospectos · {cnt.cliente||0} clientes</p>
-    {/* ADD MANUAL CLIENT BUTTON */}
-    {!showAdd&&<button onClick={()=>setShowAdd(true)} style={{...S.btn,marginBottom:"14px",background:"linear-gradient(135deg,#059669,#10b981)",fontSize:"15px",padding:"12px"}}>➕ Agregar Cliente Manual</button>}
+    {/* ADD / IMPORT / EXPORT BUTTONS */}
+    <div style={{display:"flex",gap:"6px",marginBottom:"8px",flexWrap:"wrap"}}>
+      {!showAdd&&<button onClick={()=>setShowAdd(true)} style={{...S.btn,flex:1,background:"linear-gradient(135deg,#059669,#10b981)",fontSize:"14px",padding:"11px",width:"auto"}}>➕ Agregar</button>}
+      <button onClick={downloadTemplate} style={{...S.btn,flex:1,background:"linear-gradient(135deg,#7c3aed,#a855f7)",fontSize:"14px",padding:"11px",width:"auto"}}>📋 Plantilla</button>
+    </div>
+    <div style={{display:"flex",gap:"6px",marginBottom:"14px"}}>
+      <input type="file" ref={fileRef} onChange={handleImport} accept=".csv,.txt,.tsv,.xls,.xlsx" style={{display:"none"}}/>
+      <button onClick={()=>fileRef.current?.click()} style={{...S.btn,flex:1,background:"linear-gradient(135deg,#2563eb,#1d4ed8)",fontSize:"14px",padding:"11px",width:"auto"}}>📥 Importar</button>
+      {clients.length>0&&<button onClick={handleExport} style={{...S.btn,flex:1,background:"linear-gradient(135deg,#d97706,#f59e0b)",fontSize:"14px",padding:"11px",width:"auto"}}>📤 Exportar</button>}
+    </div>
+    {importMsg&&<div style={{padding:"10px 14px",borderRadius:"10px",marginBottom:"10px",fontSize:"14px",fontWeight:700,background:importMsg.startsWith("✅")?"#f0fdf4":"#fef2f2",color:importMsg.startsWith("✅")?"#059669":"#dc2626",border:`2px solid ${importMsg.startsWith("✅")?"#bbf7d0":"#fecaca"}`}}>{importMsg}</div>}
     {showAdd&&<div style={{...S.card,border:"2px solid #10b981",marginBottom:"14px"}}>
       <div style={{fontSize:"15px",fontWeight:800,color:"#059669",marginBottom:"10px"}}>➕ Nuevo Cliente</div>
       <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Nombre del negocio *" style={{...S.input,marginBottom:"8px",fontSize:"15px"}} onFocus={e=>e.target.style.borderColor="#059669"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
