@@ -132,64 +132,103 @@ function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,toggleP
   };
 
   // ── IMPORT CSV/EXCEL ──
+  const cleanLocalidad=(s)=>{
+    if(!s)return"";
+    return s.trim().replace(/\.$/,"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()
+      .replace(/^ALERCE$/i,"ALERCE").replace(/^FRUTIILAR$/i,"FRUTILLAR")
+      .split(" ").map(w=>w.charAt(0)+w.slice(1).toLowerCase()).join(" ");
+  };
+  const cleanPhone=(p)=>{
+    if(!p)return"";
+    let phone=String(p).split("/")[0].trim().replace(/\s+/g,"").replace(/[^\d+]/g,"");
+    if(phone&&!phone.startsWith("+")&&phone.length>=8&&phone.length<=9)phone="+569"+phone;
+    if(phone&&!phone.startsWith("+")&&phone.length>=10)phone="+56"+phone;
+    return phone;
+  };
+
   const handleImport=async(e)=>{
     const file=e.target.files[0];if(!file)return;
-    let text=await file.text();
-    // Remove BOM
-    text=text.replace(/^\uFEFF/,"");
-    const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(l=>l);
-    if(lines.length<2){setImportMsg("❌ El archivo está vacío");setTimeout(()=>setImportMsg(""),3000);return;}
-    // Detect separator: semicolon (Excel español), tab, or comma
-    const firstLine=lines[0];
-    const sep=firstLine.includes(";")?";":firstLine.includes("\t")?"\t":",";
-    const headers=firstLine.toLowerCase().split(sep).map(h=>h.trim().replace(/"/g,"").replace(/\uFEFF/g,""));
-    // Find column indices
-    const nameIdx=headers.findIndex(h=>h.includes("nombre")||h==="name"||h.includes("cliente"));
-    const addrIdx=headers.findIndex(h=>h.includes("direc")||h.includes("address"));
-    const phoneIdx=headers.findIndex(h=>h.includes("teléfono")||h.includes("telefono")||h.includes("phone")||h.includes("fono"));
-    const typeIdx=headers.findIndex(h=>h.includes("giro")||h.includes("tipo")||h.includes("type")||h.includes("rubro"));
-    const emailIdx=headers.findIndex(h=>h.includes("email")||h.includes("correo")||h.includes("e-mail")||h.includes("mail"));
-    const waIdx=headers.findIndex(h=>h.includes("whatsapp")||h.includes("wsp")||h.includes("wa"));
-    const rutIdx=headers.findIndex(h=>h.includes("rut")||h.includes("ruc")||h.includes("tax"));
-    const locIdx=headers.findIndex(h=>h.includes("localidad")||h.includes("ciudad")||h.includes("city")||h.includes("comuna")||h.includes("zona"));
-    if(nameIdx===-1){setImportMsg("❌ No se encontró columna 'Cliente' o 'Nombre'. Revisa tu archivo.");setTimeout(()=>setImportMsg(""),4000);return;}
-    
-    // Get existing RUTs to avoid duplicates
+    let rows=[];
+
+    if(file.name.endsWith(".xlsx")||file.name.endsWith(".xls")){
+      // XLSX: read with SheetJS
+      try{
+        const XLSX=await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
+        const buf=await file.arrayBuffer();
+        const wb=XLSX.read(buf,{type:"array"});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        rows=XLSX.utils.sheet_to_json(ws,{defval:""});
+      }catch(err){
+        console.error("XLSX parse error:",err);
+        setImportMsg("❌ Error al leer Excel. Guarda como CSV (separado por ;) e intenta de nuevo.");
+        setTimeout(()=>setImportMsg(""),4000);
+        if(fileRef.current)fileRef.current.value="";
+        return;
+      }
+    }else{
+      // CSV/TXT: parse manually
+      let text=await file.text();
+      text=text.replace(/^\uFEFF/,"");
+      const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(l=>l);
+      if(lines.length<2){setImportMsg("❌ Archivo vacío");setTimeout(()=>setImportMsg(""),3000);return;}
+      const sep=lines[0].includes(";")?";":lines[0].includes("\t")?"\t":",";
+      const hdrs=lines[0].split(sep).map(h=>h.trim().replace(/"/g,"").replace(/\uFEFF/g,""));
+      for(let i=1;i<lines.length;i++){
+        const cols=lines[i].split(sep).map(c=>c.trim().replace(/^"|"$/g,""));
+        const obj={};hdrs.forEach((h,j)=>{obj[h]=cols[j]||"";});
+        rows.push(obj);
+      }
+    }
+
+    if(rows.length===0){setImportMsg("❌ No se encontraron datos");setTimeout(()=>setImportMsg(""),3000);return;}
+
+    // Map columns flexibly
+    const keys=Object.keys(rows[0]).map(k=>k.toLowerCase().trim());
+    const origKeys=Object.keys(rows[0]);
+    const find=(patterns)=>{const idx=keys.findIndex(k=>patterns.some(p=>k.includes(p)));return idx>=0?origKeys[idx]:null;};
+
+    const colName=find(["cliente","nombre","name"])||find(["razon"]);
+    const colRut=find(["rut","ruc"]);
+    const colAddr=find(["direc","address","domicilio"]);
+    const colLoc=find(["localidad","ciudad","comuna","zona","city"]);
+    const colType=find(["tipo","giro","rubro","type","actividad"]);
+    const colEmail=find(["mail","correo","email"]);
+    const colPhone=find(["fono","telef","phone","celular","movil"]);
+
+    if(!colName){setImportMsg("❌ No encontré columna 'Cliente' o 'Nombre'. Revisa los encabezados.");setTimeout(()=>setImportMsg(""),4000);if(fileRef.current)fileRef.current.value="";return;}
+
     const existingRuts=new Set(clients.filter(c=>c.rut).map(c=>c.rut.trim()));
-    const existingNames=new Set(clients.map(c=>c.name.trim().toLowerCase()));
+    const existingNames=new Set(clients.map(c=>(c.name||"").trim().toLowerCase()));
     let count=0;let skipped=0;
-    
-    for(let i=1;i<lines.length;i++){
-      const cols=lines[i].split(sep).map(c=>c.trim().replace(/^"|"$/g,""));
-      const name=cols[nameIdx];if(!name||!name.trim())continue;
-      const rut=rutIdx>=0?(cols[rutIdx]||"").trim():"";
-      
-      // Skip duplicates by RUT or exact name
+
+    for(const row of rows){
+      const name=String(row[colName]||"").trim();
+      if(!name)continue;
+      const rut=colRut?String(row[colRut]||"").trim():"";
       if(rut&&existingRuts.has(rut)){skipped++;continue;}
-      if(existingNames.has(name.trim().toLowerCase())){skipped++;continue;}
-      
-      // Clean phone: take first number if multiple (e.g. "987992083 / 987992083")
-      let phone=phoneIdx>=0?(cols[phoneIdx]||""):"";
-      phone=phone.split("/")[0].trim().replace(/\s+/g,"");
-      if(phone&&!phone.startsWith("+")&&phone.length>=8)phone="+56"+phone;
-      
+      if(existingNames.has(name.toLowerCase())){skipped++;continue;}
+
+      const phone=cleanPhone(colPhone?row[colPhone]:"");
+      const loc=cleanLocalidad(colLoc?row[colLoc]:"");
+
       addClient({
-        id:"imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,8)+"_"+i,
-        name:name.trim(),
-        address:addrIdx>=0?(cols[addrIdx]||"").trim()||"Sin dirección":"Sin dirección",
+        id:"imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,8)+"_"+count,
+        name:name,
+        address:colAddr?String(row[colAddr]||"").trim()||"":"",
         phone:phone,
-        type:typeIdx>=0?(cols[typeIdx]||"").trim():"",
-        email:emailIdx>=0?(cols[emailIdx]||"").trim():"",
+        type:colType?String(row[colType]||"").trim():"",
+        email:colEmail?String(row[colEmail]||"").trim():"",
         whatsapp:phone,
         rut:rut,
-        localidad:locIdx>=0?(cols[locIdx]||"").trim():"",
+        localidad:loc,
         rating:0,
       });
       existingRuts.add(rut);
-      existingNames.add(name.trim().toLowerCase());
+      existingNames.add(name.toLowerCase());
       count++;
     }
-    setImportMsg(`✅ ${count} clientes importados${skipped>0?` · ${skipped} duplicados omitidos`:""}`);setTimeout(()=>setImportMsg(""),4000);
+    setImportMsg(`✅ ${count} clientes importados${skipped>0?` · ${skipped} duplicados omitidos`:""}`);
+    setTimeout(()=>setImportMsg(""),4000);
     if(fileRef.current)fileRef.current.value="";
   };
 
@@ -215,13 +254,10 @@ function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,toggleP
   };
 
   const getLocalidad=(c)=>{
-    if(c.localidad&&c.localidad.trim())return c.localidad.trim();
-    // Try to extract city from address (common Chilean format: "Street 123, City")
-    if(c.address){
-      const parts=c.address.split(/[,;]/);
-      if(parts.length>=2){const last=parts[parts.length-1].trim();if(last&&last.length>2&&!/^\d/.test(last))return last;}
-    }
-    return "";
+    let loc=c.localidad||"";
+    if(!loc&&c.address){const parts=c.address.split(/[,;]/);if(parts.length>=2){const last=parts[parts.length-1].trim();if(last&&last.length>2&&!/^\d/.test(last))loc=last;}}
+    if(!loc)return"";
+    return loc.trim().replace(/\.$/,"").split(" ").map(w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(" ").replace(/^Alerce$/i,"Alerce").replace(/^Frutiilar$/i,"Frutillar").replace(/^Puerto montt$/i,"Puerto Montt").replace(/^Puerto varas$/i,"Puerto Varas");
   };
   const[filterLoc,setFilterLoc]=useState("todas");
   const localidades=[...new Set(clients.map(c=>getLocalidad(c)).filter(l=>l&&l.trim()))].sort();
@@ -238,6 +274,7 @@ function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,toggleP
       <input type="file" ref={fileRef} onChange={handleImport} accept=".csv,.txt,.tsv,.xls,.xlsx" style={{display:"none"}}/>
       <button onClick={()=>fileRef.current?.click()} style={{...S.btn,flex:1,background:"linear-gradient(135deg,#2563eb,#1d4ed8)",fontSize:"14px",padding:"11px",width:"auto"}}>📥 Importar</button>
       {clients.length>0&&<button onClick={handleExport} style={{...S.btn,flex:1,background:"linear-gradient(135deg,#d97706,#f59e0b)",fontSize:"14px",padding:"11px",width:"auto"}}>📤 Exportar</button>}
+      {clients.length>0&&<button onClick={()=>{if(confirm("¿Borrar TODOS los clientes? Esta acción no se puede deshacer.")){clients.forEach(c=>delClient(c.id));}}} style={{...S.btn,flex:0,background:"#ef4444",fontSize:"14px",padding:"11px",width:"auto",minWidth:"40px"}}>🗑️</button>}
     </div>
     {importMsg&&<div style={{padding:"10px 14px",borderRadius:"10px",marginBottom:"10px",fontSize:"14px",fontWeight:700,background:importMsg.startsWith("✅")?"#edf7e6":"#fef2f2",color:importMsg.startsWith("✅")?"#7ACE67":"#c0392b",border:`2px solid ${importMsg.startsWith("✅")?"#b9e6a0":"#fecaca"}`}}>{importMsg}</div>}
     {showAdd&&<div style={{...S.card,border:"2px solid #10b981",marginBottom:"14px"}}>
@@ -254,28 +291,28 @@ function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,toggleP
     <div style={{display:"flex",gap:"5px",flexWrap:"wrap",marginBottom:"8px"}}><Pill l={`Todos(${cnt.todos})`} on={filter==="todos"} fn={()=>setFilter("todos")} c="#64748b"/>{Object.entries(STATUS).map(([k,v])=><Pill key={k} l={`${v.icon}${v.label}(${cnt[k]||0})`} on={filter===k} fn={()=>setFilter(k)} c={v.color}/>)}<Pill l={`🗺️ En ruta(${clients.filter(c=>route.includes(c.id)).length})`} on={filter==="enruta"} fn={()=>setFilter("enruta")} c="#31B189"/><Pill l={`⭕ Sin ruta(${clients.filter(c=>!route.includes(c.id)).length})`} on={filter==="sinruta"} fn={()=>setFilter("sinruta")} c="#64748b"/></div>
     {localidades.length>1&&<div style={{display:"flex",gap:"5px",flexWrap:"wrap",marginBottom:"14px"}}><Pill l="📍 Todas" on={filterLoc==="todas"} fn={()=>setFilterLoc("todas")} c="#0ea5e9"/>{localidades.map(loc=><Pill key={loc} l={`📍 ${loc}`} on={filterLoc===loc} fn={()=>setFilterLoc(loc)} c="#0ea5e9"/>)}</div>}
     {list.length===0&&<div style={{textAlign:"center",padding:"44px",color:"#94a3b8"}}><div style={{fontSize:"36px",marginBottom:"8px"}}>📋</div>{clients.length===0?"Agrega clientes con el botón verde ☝️ o busca en 🔍":"Sin resultados"}</div>}
-    {list.map((c,i)=>{const cfg=STATUS[c.status];const open=openId===c.id;const inR=route.includes(c.id);return(<div key={c.id} style={{...S.card,padding:0,overflow:"hidden",animation:`fadeIn 0.3s ease ${i*0.03}s both`}}>
+    {list.map((c,i)=>{const cfg=STATUS[c.status];const open=openId===c.id;const inR=route.includes(c.id);const loc=getLocalidad(c);return(<div key={c.id} style={{...S.card,padding:0,overflow:"hidden",animation:`fadeIn 0.3s ease ${i*0.03}s both`}}>
       <div onClick={()=>setOpenId(open?null:c.id)} style={{padding:"14px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{display:"flex",alignItems:"center",gap:"6px",marginBottom:"4px",flexWrap:"wrap"}}>
-            <span style={{fontSize:"16px",fontWeight:800}}>{c.name}</span>
+          <div style={{display:"flex",alignItems:"center",gap:"6px",marginBottom:"3px",flexWrap:"wrap"}}>
+            <span style={{fontSize:"16px",fontWeight:800,color:"#1e293b"}}>{c.name}</span>
             <span style={{fontSize:"11px",padding:"2px 7px",borderRadius:"8px",background:cfg.bg,color:cfg.color,fontWeight:700}}>{cfg.icon}{cfg.label}</span>
-            {c.paid==="yes"&&<span style={{fontSize:"10px",padding:"2px 6px",borderRadius:"6px",background:"#d4edcc",color:"#7ACE67",fontWeight:700}}>💰 Pagó</span>}
-            {c.paid==="no"&&<span style={{fontSize:"10px",padding:"2px 6px",borderRadius:"6px",background:"#fee2e2",color:"#c0392b",fontWeight:700}}>⚠️ Debe</span>}
+            {c.paid==="yes"&&<span style={{fontSize:"10px",padding:"2px 6px",borderRadius:"6px",background:"#d4edcc",color:"#2e7d32",fontWeight:700}}>💰</span>}
+            {c.paid==="no"&&<span style={{fontSize:"10px",padding:"2px 6px",borderRadius:"6px",background:"#fee2e2",color:"#c0392b",fontWeight:700}}>⚠️</span>}
             {inR&&<span style={{fontSize:"10px",padding:"2px 5px",borderRadius:"6px",background:"#e8f5e9",color:"#31B189",fontWeight:700}}>🗺️</span>}
           </div>
-          {c.rut&&<div style={{fontSize:"12px",color:"#94a3b8",marginBottom:"2px"}}>RUT: {c.rut}</div>}
-          {c.address&&c.address!=="Sin dirección"&&<div style={{fontSize:"13px",color:"#475569",marginBottom:"2px"}}>📍 {c.address}{c.localidad&&`, ${c.localidad}`}</div>}
-          {!c.address&&c.localidad&&<div style={{fontSize:"13px",color:"#475569",marginBottom:"2px"}}>📍 {c.localidad}</div>}
-          <div style={{display:"flex",gap:"10px",flexWrap:"wrap",marginTop:"2px"}}>
-            {c.type&&<span style={{fontSize:"12px",color:"#64748b"}}>🏢 {c.type}</span>}
-            {(c.phone||c.whatsapp)&&<span style={{fontSize:"12px",color:"#64748b"}}>📞 {c.phone||c.whatsapp}</span>}
-            {c.email&&<span style={{fontSize:"12px",color:"#64748b"}}>📧 {c.email}</span>}
-          </div>
+          {(c.address||loc)&&<div style={{fontSize:"13px",color:"#475569",marginBottom:"1px"}}>📍 {c.address&&c.address!=="Sin dirección"?c.address:""}{loc?`${c.address&&c.address!=="Sin dirección"?", ":""}${loc}`:""}</div>}
+          {c.type&&<div style={{fontSize:"12px",color:"#64748b"}}>{c.type}</div>}
         </div>
-        <span style={{color:"#94a3b8",transform:open?"rotate(180deg)":"none",transition:"0.2s",marginTop:"4px"}}>▾</span>
+        <span style={{color:"#c8d1da",fontSize:"14px",transform:open?"rotate(180deg)":"none",transition:"0.2s",marginTop:"6px",flexShrink:0}}>▾</span>
       </div>
-      {open&&<div style={{padding:"0 14px 14px",borderTop:"2px solid #f1f5f9"}}><div style={{...S.section,marginTop:"10px"}}>Estado</div><div style={{display:"flex",gap:"4px",flexWrap:"wrap",marginBottom:"10px"}}>{Object.entries(STATUS).map(([k,v])=><button key={k} onClick={()=>setStatus(c.id,k)} style={{padding:"6px 10px",borderRadius:"8px",fontSize:"12px",fontWeight:700,cursor:"pointer",background:c.status===k?v.color:"#f8fafc",color:c.status===k?"#fff":v.color,border:`2px solid ${c.status===k?v.color:"#e2e8f0"}`}}>{v.icon}{v.label}</button>)}</div>
+      {open&&<div style={{padding:"0 14px 14px",borderTop:"2px solid #f1f5f9"}}>
+        {/* Client details */}
+        <div style={{padding:"10px 0",display:"flex",flexDirection:"column",gap:"4px"}}>
+          {c.rut&&<div style={{fontSize:"12px",color:"#94a3b8"}}>RUT: {c.rut}</div>}
+          {(c.phone||c.whatsapp)&&<div style={{fontSize:"13px",color:"#475569"}}>📞 {c.phone||c.whatsapp}</div>}
+          {c.email&&<div style={{fontSize:"13px",color:"#475569"}}>📧 {c.email}</div>}
+        </div><div style={{...S.section,marginTop:"10px"}}>Estado</div><div style={{display:"flex",gap:"4px",flexWrap:"wrap",marginBottom:"10px"}}>{Object.entries(STATUS).map(([k,v])=><button key={k} onClick={()=>setStatus(c.id,k)} style={{padding:"6px 10px",borderRadius:"8px",fontSize:"12px",fontWeight:700,cursor:"pointer",background:c.status===k?v.color:"#f8fafc",color:c.status===k?"#fff":v.color,border:`2px solid ${c.status===k?v.color:"#e2e8f0"}`}}>{v.icon}{v.label}</button>)}</div>
         <div style={{display:"flex",gap:"6px",marginBottom:"10px",flexWrap:"wrap"}}>{!inR&&<button onClick={()=>toRoute(c.id)} style={{...S.btnSm,color:"#31B189",borderColor:"#b2dfdb",background:"#e8f5e9",fontSize:"12px"}}>🗺️ A ruta</button>}<button onClick={()=>togglePaid(c.id)} style={{...S.btnSm,color:c.paid==="yes"?"#7ACE67":c.paid==="no"?"#c0392b":"#64748b",borderColor:c.paid==="yes"?"#b9e6a0":c.paid==="no"?"#fecaca":"#e2e8f0",background:c.paid==="yes"?"#edf7e6":c.paid==="no"?"#fef2f2":"#f8fafc",fontSize:"12px"}}>{c.paid==="yes"?"💰 Pagó":c.paid==="no"?"⚠️ Debe":"💲 Marcar pago"}</button><button onClick={()=>delClient(c.id)} style={{...S.btnSm,color:"#c0392b",borderColor:"#fecaca",background:"#fef2f2",fontSize:"12px"}}>🗑️ Eliminar</button></div>
         {/* CONTACT BUTTONS */}
         {(c.phone||c.whatsapp||c.email)&&<div style={{marginBottom:"10px"}}><div style={S.section}>Contactar</div><div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
