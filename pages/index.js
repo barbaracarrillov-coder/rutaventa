@@ -14,7 +14,7 @@ async function callAI(system,messages,max_tokens=1500){
 function today(){return new Date().toISOString().split("T")[0];}
 
 const STATUS={nuevo:{label:"Nuevo",color:"#2563eb",bg:"#dbeafe",icon:"★"},contactado:{label:"Contactado",color:"#d97706",bg:"#fef3c7",icon:"✉"},interesado:{label:"Interesado",color:"#7c3aed",bg:"#ede9fe",icon:"🎯"},cliente:{label:"Cliente",color:"#059669",bg:"#d1fae5",icon:"✓"},perdido:{label:"Perdido",color:"#dc2626",bg:"#fee2e2",icon:"✕"}};
-const TABS=[{id:"prospects",icon:"🔍",label:"Buscar"},{id:"clients",icon:"📋",label:"Clientes"},{id:"route",icon:"🗺️",label:"Ruta"},{id:"prices",icon:"💰",label:"Precios"},{id:"agent",icon:"🤖",label:"Agente"}];
+const TABS=[{id:"prospects",icon:"🔍",label:"Buscar"},{id:"clients",icon:"📋",label:"Clientes"},{id:"route",icon:"🗺️",label:"Ruta"},{id:"prices",icon:"💰",label:"Precios"},{id:"profile",icon:"👤",label:"Perfil"},{id:"agent",icon:"🤖",label:"Agente"}];
 const QUICK=[{label:"🍖 Carnicerías",q:"carnicería"},{label:"🍽️ Restaurantes",q:"restaurante"},{label:"🏪 Mercados",q:"mercado de alimentos"},{label:"🏨 Hoteles",q:"hotel con restaurante"},{label:"🍳 Fuentes de soda",q:"fuente de soda"},{label:"🍕 Pizzerías",q:"pizzería"},{label:"☕ Cafeterías",q:"cafetería"},{label:"🎂 Pastelerías",q:"pastelería"},{label:"🏥 Casinos",q:"casino empresa comedor"},{label:"🐟 Marisquerías",q:"cevichería marisquería"}];
 
 const S={input:{width:"100%",padding:"14px 16px",background:"#fff",border:"2px solid #e2e8f0",borderRadius:"14px",color:"#1e293b",fontSize:"16px",outline:"none",fontFamily:"'Nunito',sans-serif"},card:{background:"#fff",borderRadius:"14px",border:"2px solid #e2e8f0",padding:"16px",marginBottom:"10px"},section:{fontSize:"13px",fontWeight:800,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"1px",marginBottom:"10px"},btn:{padding:"14px 24px",background:"linear-gradient(135deg,#ea580c,#dc2626)",border:"none",borderRadius:"14px",color:"#fff",fontWeight:800,fontSize:"16px",cursor:"pointer",boxShadow:"0 3px 12px rgba(234,88,12,0.25)",fontFamily:"'Nunito',sans-serif",width:"100%"},btnSm:{padding:"8px 14px",background:"#f1f5f9",border:"2px solid #e2e8f0",borderRadius:"10px",color:"#475569",fontSize:"14px",fontWeight:700,cursor:"pointer",fontFamily:"'Nunito',sans-serif"}};
@@ -49,10 +49,11 @@ export default function App(){const[user,setUser]=useState(null);const[ready,set
 
 function MainApp({user,onLogout}){
   const[tab,setTab]=useState("prospects");const[clients,setClients]=useState([]);const[route,setRoute]=useState([]);const[priceText,setPriceText]=useState("");const[streak,setStreak]=useState({count:0,lastDate:null});const[loaded,setLoaded]=useState(false);
+  const[profile,setProfile]=useState({empresa:"",giro:"",zona:"",telefono:"",emailEmpresa:"",descripcion:"",ofertas:""});
   const uid=user.email.replace(/[^a-z0-9]/gi,"");
   useEffect(()=>{
-    const c=sGet(`${uid}-cl`)||[];const r=sGet(`${uid}-rt`)||[];const p=sGet(`${uid}-pr`)||"";const s=sGet(`${uid}-sk`)||{count:0,lastDate:null};
-    setClients(c);setRoute(r);setPriceText(p);
+    const c=sGet(`${uid}-cl`)||[];const r=sGet(`${uid}-rt`)||[];const p=sGet(`${uid}-pr`)||"";const s=sGet(`${uid}-sk`)||{count:0,lastDate:null};const pf=sGet(`${uid}-pf`)||{empresa:"",giro:"",zona:"",telefono:"",emailEmpresa:"",descripcion:"",ofertas:""};
+    setClients(c);setRoute(r);setPriceText(p);setProfile(pf);
     const td=today();if(s.lastDate===td){setStreak(s);}else{const y=new Date();y.setDate(y.getDate()-1);const yd=y.toISOString().split("T")[0];if(s.lastDate===yd){const u={count:s.count+1,lastDate:td};setStreak(u);sSet(`${uid}-sk`,u);}else{const u={count:1,lastDate:td};setStreak(u);sSet(`${uid}-sk`,u);}}
     setLoaded(true);
   },[uid]);
@@ -69,6 +70,7 @@ function MainApp({user,onLogout}){
   const moveRoute=useCallback((f,t)=>setRoute(p=>{const a=[...p];const[m]=a.splice(f,1);a.splice(t,0,m);return a;}),[]);
   const reorderRoute=useCallback((newOrder)=>setRoute(newOrder),[]);
   const savePrices=useCallback(t=>{setPriceText(t);sSet(`${uid}-pr`,t);},[uid]);
+  const saveProfile=useCallback(p=>{setProfile(p);sSet(`${uid}-pf`,p);},[uid]);
   const routeClients=route.map(id=>clients.find(c=>c.id===id)).filter(Boolean);
   const todaysActions=clients.filter(c=>c.lastContact===today()).length;
 
@@ -83,7 +85,8 @@ function MainApp({user,onLogout}){
         {tab==="clients"&&<CL clients={clients} setStatus={setStatus} addNote={addNote} delClient={delClient} toRoute={toRoute} route={route} addClient={addClient} togglePaid={togglePaid}/>}
         {tab==="route"&&<RT routeClients={routeClients} offRoute={offRoute} moveRoute={moveRoute} setStatus={setStatus} reorderRoute={reorderRoute}/>}
         {tab==="prices"&&<PR priceText={priceText} savePrices={savePrices}/>}
-        {tab==="agent"&&<AG clients={clients} routeClients={routeClients} priceText={priceText} streak={streak} userName={user.name} todaysActions={todaysActions} uid={uid}/>}
+        {tab==="profile"&&<ProfileTab profile={profile} saveProfile={saveProfile} userName={user.name} userEmail={user.email}/>}
+        {tab==="agent"&&<AG clients={clients} routeClients={routeClients} priceText={priceText} streak={streak} userName={user.name} todaysActions={todaysActions} uid={uid} profile={profile}/>}
       </main>
     </div>
   </>);
@@ -299,10 +302,59 @@ function PR({priceText,savePrices}){const[text,setText]=useState(priceText);cons
   </div>);
 }
 
-// ━━━ AGENT (with 3-day chat history) ━━━━━━━━━━━━━━━━━
-function AG({clients,routeClients,priceText,streak,userName,todaysActions,uid}){const fn=userName.split(" ")[0];
+// ━━━ PROFILE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function ProfileTab({profile,saveProfile,userName,userEmail}){
+  const[p,setP]=useState(profile);const[saved,setSaved]=useState(false);
+  const upd=(k,v)=>setP(prev=>({...prev,[k]:v}));
+  const save=()=>{saveProfile(p);setSaved(true);setTimeout(()=>setSaved(false),2000);};
+  const lbl={fontSize:"13px",fontWeight:700,color:"#475569",display:"block",marginBottom:"5px"};
+  return(<div style={{animation:"fadeIn 0.4s"}}>
+    <h2 style={{fontSize:"22px",fontWeight:900,marginBottom:"4px"}}>Mi Perfil</h2>
+    <p style={{fontSize:"14px",color:"#64748b",marginBottom:"16px"}}>El agente IA usa estos datos para pitches, cotizaciones y mensajes</p>
+
+    <div style={{...S.card,border:"2px solid #e2e8f0",marginBottom:"12px"}}>
+      <div style={{fontSize:"15px",fontWeight:800,color:"#1e293b",marginBottom:"12px"}}>👤 Datos del Vendedor</div>
+      <div style={{fontSize:"14px",color:"#64748b",marginBottom:"10px"}}>Nombre: <strong>{userName}</strong> · Email: <strong>{userEmail}</strong></div>
+      <label style={lbl}>Teléfono de contacto</label>
+      <input value={p.telefono||""} onChange={e=>upd("telefono",e.target.value)} placeholder="+56 9 1234 5678" style={{...S.input,marginBottom:"10px"}} onFocus={e=>e.target.style.borderColor="#ea580c"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
+      <label style={lbl}>Zona de trabajo</label>
+      <input value={p.zona||""} onChange={e=>upd("zona",e.target.value)} placeholder="ej: Puerto Montt, Puerto Varas, Osorno" style={{...S.input,marginBottom:"10px"}} onFocus={e=>e.target.style.borderColor="#ea580c"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
+    </div>
+
+    <div style={{...S.card,border:"2px solid #e2e8f0",marginBottom:"12px"}}>
+      <div style={{fontSize:"15px",fontWeight:800,color:"#1e293b",marginBottom:"12px"}}>🏢 Mi Empresa</div>
+      <label style={lbl}>Nombre de la empresa</label>
+      <input value={p.empresa||""} onChange={e=>upd("empresa",e.target.value)} placeholder="ej: Distribuidora Sur Limpio Ltda." style={{...S.input,marginBottom:"10px"}} onFocus={e=>e.target.style.borderColor="#ea580c"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
+      <label style={lbl}>Giro / Rubro</label>
+      <input value={p.giro||""} onChange={e=>upd("giro",e.target.value)} placeholder="ej: Distribución de productos de limpieza industrial" style={{...S.input,marginBottom:"10px"}} onFocus={e=>e.target.style.borderColor="#ea580c"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
+      <label style={lbl}>Email de la empresa</label>
+      <input value={p.emailEmpresa||""} onChange={e=>upd("emailEmpresa",e.target.value)} placeholder="ventas@miempresa.cl" type="email" style={{...S.input,marginBottom:"10px"}} onFocus={e=>e.target.style.borderColor="#ea580c"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
+      <label style={lbl}>Descripción de lo que vendemos (ventajas, diferenciadores)</label>
+      <textarea value={p.descripcion||""} onChange={e=>upd("descripcion",e.target.value)} placeholder={"ej: Vendemos productos de limpieza industrial para restaurantes, hoteles y empresas. Trabajamos con protocolos SEREMI. Entrega en 24 horas en toda la región de Los Lagos. Precios mayoristas directos."} rows={4} style={{...S.input,resize:"vertical",minHeight:"100px",lineHeight:1.6,marginBottom:"10px"}} onFocus={e=>e.target.style.borderColor="#ea580c"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
+    </div>
+
+    <div style={{...S.card,border:"2px solid #f59e0b",marginBottom:"12px"}}>
+      <div style={{fontSize:"15px",fontWeight:800,color:"#d97706",marginBottom:"8px"}}>🔥 Ofertas de la Semana</div>
+      <p style={{fontSize:"13px",color:"#64748b",marginBottom:"10px"}}>Productos en promoción — el agente IA los incluye en pitches y cotizaciones</p>
+      <textarea value={p.ofertas||""} onChange={e=>upd("ofertas",e.target.value)} placeholder={"ej:\nDesengrasante industrial 5L - $8.990 (antes $12.990)\nPack sanitización restaurante - $45.000\nLimpiador multiuso caja 12u - $15.900\n2x1 en guantes industriales"} rows={5} style={{...S.input,resize:"vertical",minHeight:"120px",lineHeight:1.6,marginBottom:"10px"}} onFocus={e=>e.target.style.borderColor="#f59e0b"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
+    </div>
+
+    <button onClick={save} style={{...S.btn,background:saved?"#059669":"linear-gradient(135deg,#ea580c,#dc2626)",fontSize:"18px",padding:"16px"}}>{saved?"✓ Perfil Guardado":"💾 Guardar Perfil"}</button>
+
+    {p.empresa&&<div style={{marginTop:"14px",padding:"14px",background:"#f0fdf4",borderRadius:"12px",border:"2px solid #bbf7d0"}}>
+      <div style={{fontSize:"14px",fontWeight:700,color:"#059669",marginBottom:"4px"}}>✓ Perfil configurado</div>
+      <div style={{fontSize:"13px",color:"#065f46"}}>El agente IA ya conoce tu empresa y usará estos datos automáticamente en pitches, cotizaciones y mensajes.</div>
+    </div>}
+  </div>);
+}
+
+// ━━━ AGENT (with 3-day chat history + profile context) ━━━
+function AG({clients,routeClients,priceText,streak,userName,todaysActions,uid,profile}){const fn=userName.split(" ")[0];
+  const hasProfile=profile&&profile.empresa;
   const welcome=streak.count>=5?`🔥 ¡${fn}, llevas ${streak.count} días de racha! Top 10%. Los que mantienen 20+ duplican su cartera.\n\n`:streak.count>=2?`💪 ${fn}, van ${streak.count} días de racha.\n\n`:`¡Hola ${fn}! Hoy empieza tu racha. 🔥\n\n`;
-  const stats=`📊 Cartera: ${clients.length} en cartera, ${clients.filter(c=>c.status==="cliente").length} activos, ${clients.filter(c=>c.status==="nuevo").length} sin contactar.\n${todaysActions>0?`✅ Hoy: ${todaysActions} acciones.`:"🎯 Aún no haces contactos hoy."}\n\nTe ayudo con: 🎯Pitch · 💬Objeciones · 💰Cotización · 📝WhatsApp · 📊Cartera\n\n¿Qué necesitas?`;
+  const profileMsg=hasProfile?`🏢 ${profile.empresa}${profile.giro?` · ${profile.giro}`:""}\n`:"";
+  const offersMsg=profile&&profile.ofertas?`🔥 Ofertas activas: Sí\n`:"";
+  const stats=`${profileMsg}${offersMsg}📊 Cartera: ${clients.length} en cartera, ${clients.filter(c=>c.status==="cliente").length} activos, ${clients.filter(c=>c.status==="nuevo").length} sin contactar.\n${todaysActions>0?`✅ Hoy: ${todaysActions} acciones.`:"🎯 Aún no haces contactos hoy."}\n\n${!hasProfile?"⚠️ Configura tu perfil en 👤 Perfil para que pueda ayudarte mejor.\n\n":""}Te ayudo con: 🎯Pitch · 💬Objeciones · 💰Cotización · 📝WhatsApp · 📊Cartera\n\n¿Qué necesitas?`;
   const defaultMsg=[{role:"assistant",content:welcome+stats,ts:Date.now()}];
 
   // Load saved chat history (max 3 days old)
@@ -326,11 +378,28 @@ function AG({clients,routeClients,priceText,streak,userName,todaysActions,uid}){
   useEffect(()=>{if(ref.current)ref.current.scrollTop=ref.current.scrollHeight;},[msgs]);
   const QA=[{label:"🎯 Pitch",m:"Prepárame un pitch corto para un cliente nuevo."},{label:"💬 Caro",m:"Me dicen caro. Dame el guión para responder."},{label:"💰 Cotización",m:"Arma cotización con mis precios para un restaurante."},{label:"📝 WhatsApp",m:"Mensaje de seguimiento para un cliente."},{label:"📊 Cartera",m:`Analiza: ${clients.length} en cartera, ${clients.filter(c=>c.status==="cliente").length} activos, ${clients.filter(c=>c.status==="nuevo").length} nuevos. ¿Qué hago?`},{label:"🔥 Motívame",m:"Estoy desmotivado. Necesito un empujón."}];
   const send=async c=>{const text=c||input;if(!text.trim()||busy)return;setInput("");const um={role:"user",content:text,ts:Date.now()};setMsgs(p=>[...p,um]);setBusy(true);
-    try{const ctx=`VENDEDOR: ${userName}, racha ${streak.count}d, ${clients.length} en cartera, ${clients.filter(c=>c.status==="cliente").length} activos, ${clients.filter(c=>c.status==="nuevo").length} nuevos, ${routeClients.length} paradas hoy.\n${priceText?`PRECIOS:\n${priceText}`:"(Sin precios)"}`;
+    try{
+      const profileCtx=hasProfile?`
+PERFIL DEL VENDEDOR:
+- Empresa: ${profile.empresa}
+- Giro: ${profile.giro||"No especificado"}
+- Zona: ${profile.zona||"No especificada"}
+- Teléfono: ${profile.telefono||"No especificado"}
+- Email empresa: ${profile.emailEmpresa||"No especificado"}
+- Descripción: ${profile.descripcion||"No especificada"}
+${profile.ofertas?`\nOFERTAS DE LA SEMANA:\n${profile.ofertas}`:""}
+`:"(El vendedor NO ha configurado su perfil. Sugiérele que vaya a 👤 Perfil para configurar su empresa, giro y descripción.)";
+      const ctx=`VENDEDOR: ${userName}, racha ${streak.count}d, ${clients.length} en cartera, ${clients.filter(c=>c.status==="cliente").length} activos, ${clients.filter(c=>c.status==="nuevo").length} nuevos, ${routeClients.length} paradas hoy.\n${profileCtx}\n${priceText?`LISTA DE PRECIOS:\n${priceText}`:"(Sin lista de precios cargada)"}`;
       const reply=await callAI(`Coach de ventas de ${fn}. Vendedor estrella chileno — directo, práctico. Chilenismos moderados.
-PSICOLOGÍA: 1)VALIDA acciones 2)Racha ${streak.count}d 3)UNA acción concreta 4)Guiones EXACTOS 5)"${clients.filter(c=>c.status==="nuevo").length} sin contactar—otro vendedor puede llegar antes" 6)"Seguimiento en 48h = 3x más ventas"
-Si tiene precios, úsalos. Si no, sugiere subirlos en 💰.
-Max 200 palabras. Termina con 1 acción. ${ctx}`,[...msgs.filter((_,i)=>i>0),um].map(m=>({role:m.role,content:m.content})),1000);
+
+IMPORTANTE: Conoces la empresa del vendedor y sus productos. USA esta información en cada respuesta:
+- Cuando haga pitch, usa el nombre de la empresa y sus ventajas
+- Cuando arme cotización, usa los precios y ofertas de la semana
+- Cuando redacte mensajes, firma con los datos de la empresa
+- Si tiene ofertas de la semana, SIEMPRE menciónalas en pitches y cotizaciones
+
+PSICOLOGÍA: 1)VALIDA acciones 2)Racha ${streak.count}d 3)UNA acción concreta 4)Guiones EXACTOS para copiar 5)"${clients.filter(c=>c.status==="nuevo").length} sin contactar—otro vendedor puede llegar antes" 6)"Seguimiento en 48h = 3x más ventas"
+Max 200 palabras. Termina con 1 acción concreta. ${ctx}`,[...msgs.filter((_,i)=>i>0),um].map(m=>({role:m.role,content:m.content})),1000);
       setMsgs(p=>[...p,{role:"assistant",content:reply,ts:Date.now()}]);
     }catch{setMsgs(p=>[...p,{role:"assistant",content:"Error. Intenta de nuevo.",ts:Date.now()}]);}setBusy(false);};
   return(<div style={{animation:"fadeIn 0.4s",display:"flex",flexDirection:"column",height:"calc(100vh - 160px)"}}>
