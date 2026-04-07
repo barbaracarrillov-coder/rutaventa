@@ -67,6 +67,7 @@ function MainApp({user,onLogout}){
   const toRoute=useCallback(id=>setRoute(p=>p.includes(id)?p:[...p,id]),[]);
   const offRoute=useCallback(id=>setRoute(p=>p.filter(i=>i!==id)),[]);
   const moveRoute=useCallback((f,t)=>setRoute(p=>{const a=[...p];const[m]=a.splice(f,1);a.splice(t,0,m);return a;}),[]);
+  const reorderRoute=useCallback((newOrder)=>setRoute(newOrder),[]);
   const savePrices=useCallback(t=>{setPriceText(t);sSet(`${uid}-pr`,t);},[uid]);
   const routeClients=route.map(id=>clients.find(c=>c.id===id)).filter(Boolean);
   const todaysActions=clients.filter(c=>c.lastContact===today()).length;
@@ -80,7 +81,7 @@ function MainApp({user,onLogout}){
       <main style={{flex:1,overflow:"auto",padding:"14px",maxWidth:"600px",margin:"0 auto",width:"100%"}}>
         {tab==="prospects"&&<Prospects clients={clients} addClient={addClient}/>}
         {tab==="clients"&&<CL clients={clients} setStatus={setStatus} addNote={addNote} delClient={delClient} toRoute={toRoute} route={route} addClient={addClient} togglePaid={togglePaid}/>}
-        {tab==="route"&&<RT routeClients={routeClients} offRoute={offRoute} moveRoute={moveRoute} setStatus={setStatus}/>}
+        {tab==="route"&&<RT routeClients={routeClients} offRoute={offRoute} moveRoute={moveRoute} setStatus={setStatus} reorderRoute={reorderRoute}/>}
         {tab==="prices"&&<PR priceText={priceText} savePrices={savePrices}/>}
         {tab==="agent"&&<AG clients={clients} routeClients={routeClients} priceText={priceText} streak={streak} userName={user.name} todaysActions={todaysActions}/>}
       </main>
@@ -226,14 +227,39 @@ function CL({clients,setStatus,addNote,delClient,toRoute,route,addClient,toggleP
 function Pill({l,on,fn,c}){return<button onClick={fn} style={{padding:"6px 10px",borderRadius:"20px",fontSize:"11px",fontWeight:700,cursor:"pointer",background:on?c:"#f1f5f9",color:on?"#fff":"#64748b",border:`2px solid ${on?c:"#e2e8f0"}`}}>{l}</button>;}
 
 // ━━━ ROUTE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function RT({routeClients,offRoute,moveRoute,setStatus}){
+function RT({routeClients,offRoute,moveRoute,setStatus,reorderRoute}){
+  const[optimizing,setOptimizing]=useState(false);
+  const[routeInfo,setRouteInfo]=useState(null);
+
+  const optimizeRoute=async()=>{
+    if(routeClients.length<3)return; // need at least 3 to optimize
+    setOptimizing(true);
+    try{
+      const addresses=routeClients.map(c=>c.address||c.name);
+      const res=await fetch("/api/optimize-route",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({addresses})});
+      if(!res.ok)throw new Error("Failed");
+      const data=await res.json();
+      if(data.optimized&&data.waypoint_order){
+        // Reorder: first stay, middle reorder by waypoint_order, last stay
+        const first=routeClients[0];
+        const last=routeClients[routeClients.length-1];
+        const middle=routeClients.slice(1,-1);
+        const reordered=[first,...data.waypoint_order.map(i=>middle[i]),last];
+        reorderRoute(reordered.map(c=>c.id));
+        setRouteInfo({distance:data.total_distance,duration:data.total_duration});
+      }
+    }catch{console.error("Optimize failed");}
+    setOptimizing(false);
+  };
+
   if(routeClients.length===0)return<div style={{animation:"fadeIn 0.4s",textAlign:"center",padding:"44px"}}><div style={{fontSize:"44px",marginBottom:"10px"}}>🗺️</div><h2 style={{fontSize:"20px",fontWeight:900,marginBottom:"6px"}}>Ruta vacía</h2><p style={{fontSize:"14px",color:"#64748b"}}>Agrega clientes desde 📋</p></div>;
   const addrs=routeClients.map(c=>encodeURIComponent(c.address||c.name));const o=addrs[0];const d=addrs[addrs.length-1];const w=addrs.length>2?addrs.slice(1,-1).join("|"):"";
   const link=`https://www.google.com/maps/dir/?api=1&origin=${o}&destination=${d}${w?`&waypoints=${w}`:""}&travelmode=driving`;
   return(<div style={{animation:"fadeIn 0.4s"}}><h2 style={{fontSize:"22px",fontWeight:900,marginBottom:"4px"}}>Ruta del Día</h2><p style={{fontSize:"14px",color:"#64748b",marginBottom:"12px"}}>{routeClients.length} paradas</p>
-    <div style={{background:"linear-gradient(135deg,#fff7ed,#fef3c7)",borderRadius:"12px",padding:"14px",border:"2px solid #fed7aa",marginBottom:"10px",display:"flex",justifyContent:"space-around",textAlign:"center"}}><div><div style={{fontSize:"24px",fontWeight:900,color:"#ea580c"}}>{routeClients.length}</div><div style={{fontSize:"11px",color:"#92400e",fontWeight:600}}>Paradas</div></div><div><div style={{fontSize:"24px",fontWeight:900,color:"#d97706"}}>{routeClients.filter(c=>c.status==="nuevo").length}</div><div style={{fontSize:"11px",color:"#92400e",fontWeight:600}}>Nuevos</div></div><div><div style={{fontSize:"24px",fontWeight:900,color:"#059669"}}>{routeClients.filter(c=>c.status==="cliente").length}</div><div style={{fontSize:"11px",color:"#065f46",fontWeight:600}}>Clientes</div></div></div>
-    <a href={link} target="_blank" rel="noopener noreferrer" style={{display:"block",textAlign:"center",padding:"14px",background:"#1a73e8",color:"#fff",borderRadius:"12px",fontSize:"17px",fontWeight:800,textDecoration:"none",marginBottom:"8px",boxShadow:"0 3px 12px rgba(26,115,232,0.3)"}}>📍 Navegar en Google Maps</a>
-    <div style={{background:"#fffbeb",border:"2px solid #fde68a",borderRadius:"10px",padding:"8px 12px",marginBottom:"12px",fontSize:"12px",color:"#92400e",lineHeight:1.5}}>💡 En Maps: ⋮ → <b>Reordenar</b> → <b>Optimizar orden</b></div>
+    <div style={{background:"linear-gradient(135deg,#fff7ed,#fef3c7)",borderRadius:"12px",padding:"14px",border:"2px solid #fed7aa",marginBottom:"10px",display:"flex",justifyContent:"space-around",textAlign:"center"}}><div><div style={{fontSize:"24px",fontWeight:900,color:"#ea580c"}}>{routeClients.length}</div><div style={{fontSize:"11px",color:"#92400e",fontWeight:600}}>Paradas</div></div><div><div style={{fontSize:"24px",fontWeight:900,color:"#d97706"}}>{routeInfo?routeInfo.distance:"—"}</div><div style={{fontSize:"11px",color:"#92400e",fontWeight:600}}>Distancia</div></div><div><div style={{fontSize:"24px",fontWeight:900,color:"#059669"}}>{routeInfo?routeInfo.duration:"—"}</div><div style={{fontSize:"11px",color:"#065f46",fontWeight:600}}>Tiempo</div></div></div>
+    {/* OPTIMIZE BUTTON */}
+    {routeClients.length>=3&&<button onClick={optimizeRoute} disabled={optimizing} style={{...S.btn,marginBottom:"8px",background:optimizing?"#94a3b8":"linear-gradient(135deg,#7c3aed,#a855f7)",fontSize:"16px",padding:"14px"}}>{optimizing?"⏳ Calculando ruta óptima...":"🧠 Optimizar Ruta (más corta)"}</button>}
+    <a href={link} target="_blank" rel="noopener noreferrer" style={{display:"block",textAlign:"center",padding:"14px",background:"#1a73e8",color:"#fff",borderRadius:"12px",fontSize:"17px",fontWeight:800,textDecoration:"none",marginBottom:"12px",boxShadow:"0 3px 12px rgba(26,115,232,0.3)"}}>📍 Navegar en Google Maps</a>
     {routeClients.map((c,idx)=>{const cfg=STATUS[c.status];return(<div key={c.id}>{idx>0&&<div style={{width:"3px",height:"14px",background:"#fed7aa",margin:"0 0 0 24px"}}/>}<div style={{...S.card,display:"flex",gap:"10px",alignItems:"flex-start"}}><div style={{width:"38px",height:"38px",borderRadius:"50%",background:"linear-gradient(135deg,#ea580c,#dc2626)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:900,fontSize:"16px",flexShrink:0}}>{idx+1}</div><div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:"6px",marginBottom:"2px",flexWrap:"wrap"}}><span style={{fontSize:"15px",fontWeight:800}}>{c.name}</span><span style={{fontSize:"10px",padding:"2px 6px",borderRadius:"6px",background:cfg.bg,color:cfg.color,fontWeight:700}}>{cfg.icon}{cfg.label}</span></div><div style={{fontSize:"12px",color:"#64748b",marginBottom:"6px"}}>{c.address}</div><div style={{display:"flex",gap:"4px",flexWrap:"wrap"}}>{idx>0&&<button onClick={()=>moveRoute(idx,idx-1)} style={S.btnSm}>↑</button>}{idx<routeClients.length-1&&<button onClick={()=>moveRoute(idx,idx+1)} style={S.btnSm}>↓</button>}<button onClick={()=>setStatus(c.id,"contactado")} style={{...S.btnSm,color:"#d97706",borderColor:"#fde68a",background:"#fffbeb"}}>✉</button><button onClick={()=>offRoute(c.id)} style={{...S.btnSm,color:"#dc2626",borderColor:"#fecaca",background:"#fef2f2"}}>✕</button></div></div></div></div>);})}
   </div>);
 }
